@@ -1,8 +1,11 @@
 const kue = require('kue');
 const EventEmitter = require('events');
 
-import {Controller} from './controller';
-import {ExecutionErrorType, Status} from './index.d';
+import {
+  ExecutionErrorType,
+  Status, 
+  ControllerInterface
+} from './index.d';
 import {Redis} from './redis';
 import {reduce} from './objects';
 
@@ -38,21 +41,27 @@ class JobEvents extends EventEmitter {
  */
 export class Jobs {
   private queue = null;
-  private controller: Controller;
+  private controller: ControllerInterface;
   private redis : Redis = null;
 
   /**
    * We use a WebSocket server to dispatch in real time the jobs progression (and logs).
    */
-  public constructor(config: RedisConfig, redis, controller: Controller) {
-    this.controller = controller;
+  public constructor(config: RedisConfig, redis)
+  {
     this.queue = kue.createQueue({ // TODO use our redis client
       redis: config
     });
     this.redis = redis;
+    this.controller = null;
 
     // Setup kue
     this.queue.process('runTask', this.runTaskHandler.bind(this));
+  }
+
+  public registerController(controller : ControllerInterface)
+  {
+    this.controller = controller;
   }
 
   /**
@@ -62,9 +71,13 @@ export class Jobs {
   private runTaskHandler(job: RunTaskJob, done)
   {
     let self = this;
+    if (this.controller == null) {
+      throw new Error('No registered controller');
+    }
+
     this.redis.getWorkflowField(job.data.workflowId, 'baseContext')
       .then(baseContext => {
-        this.controller.run(job.data.workflowId, job.data.taskPath, baseContext, job.data.argument)
+        self.controller.run(job.data.workflowId, job.data.taskPath, baseContext, job.data.argument)
         
           /**
            * Task success

@@ -3,7 +3,11 @@ const uniqid = require('uniqid');
 
 import {Controller } from './controller';
 import {Jobs} from './jobs';
-import {WorkflowGenerator, WorkflowHash, TaskHash, Task, TaskError, Statuses, Status} from './index.d';
+import {
+  WorkflowGenerator, WorkflowHash, Workflow,
+  TaskHash, Task, TaskError,
+  Statuses, Status
+} from './index.d';
 import {Redis} from './redis';
 import {update} from './immutability';
 
@@ -13,8 +17,8 @@ const redisConfig = {
 };
 
 let redis = new Redis(redisConfig);
-let controller = new Controller(redis);
-let jobs = new Jobs(redisConfig, redis, controller);
+let jobs = new Jobs(redisConfig, redis);
+let controller = new Controller(redis, jobs);
 let io = null;
 
 /**
@@ -30,14 +34,15 @@ export function createWorkflowInstance(workflowGenerator: string, workflowData: 
   let workflowId = uniqid();
 
   // Initialize the workflow instance in redis create tasks hashes
-  let tasks = controller.generateWorkflow(workflowGenerator, workflowData);
-  let paths = controller.getTasksPaths(tasks);
+  let workflow = controller.generateWorkflow(workflowGenerator, workflowData, workflowId);
+  let paths = workflow.getAllPaths();
 
   return redis.initWorkflow(workflowGenerator, workflowData, paths, workflowId, baseContext)
     .then(() => {
-      if (execute) {
-        executeAllTasks(tasks, workflowId);
-      }
+      // TODO
+      //if (execute) {
+      //  executeAllTasks(workflow);
+      //}
 
       return workflowId;
     });
@@ -64,56 +69,18 @@ export function updateWorkflow(workflowId : string, workflowUpdater) : Promise<{
 /**
  * Execute all tasks of a workflow from @param startPath. If @param startPath == "#",
  * then all tasks are executed.
+ *
+ * TODO
  */
-export function executeAllTasks(tasks : Task[], workflowId : string, startPath : string = '#', callerSocket = null)
-{
-  executeOneTask(workflowId, startPath, callerSocket).then((jobEvents : any) => {
-    jobEvents.on('complete', function (res) {
-      let nextTaskPath = controller.getNextTask(tasks, startPath);
-      executeOneTask(workflowId, nextTaskPath, callerSocket);
-    });
-  });
-}
-
-/**
- * Mark the task as queued, and then execute eit and register listeners to broadcast results
- * through the websockets.
- */
-export function executeOneTask(workflowId : string, taskPath : string, callerSocket = null)
-{
-  return redis.setTaskStatus(workflowId, taskPath, 'queued').then(() => {
-    return jobs.runTask(workflowId, taskPath)
-      .on('complete', function (taskHash : TaskHash) {
-        sendTasksStatuses(workflowId, {
-          [taskPath]: {
-            status: 'ok',
-            ... (taskHash as any),
-          }
-        });
-      })
-      .on('failed', function (err : TaskError) {
-        sendTasksStatuses(workflowId, {
-          [taskPath]: {
-            status: 'failed',
-            ... err.payload
-          }
-        });
-      })
-      .on('error', function (err) {
-        if (callerSocket != null) {
-          callerSocket.emit('executionError', err);
-        }
-      });
-    });
-}
-
-function sendTasksStatuses(workflowId : string, statuses : Statuses)
-{
-  io.sockets.in(workflowId).emit('setTasksStatuses', {
-    id: workflowId,
-    statuses
-  });
-}
+//export function executeAllTasks(workflow : Workflow, startPath : string = '#', callerSocket = null)
+//{
+//  executeOneTask(workflow, startPath, callerSocket).then((jobEvents : any) => {
+//    jobEvents.on('complete', function (res) {
+//      let nextTaskPath = controller.getNextTask(tasks, startPath);
+//      executeOneTask(workflow, nextTaskPath, callerSocket);
+//    });
+//  });
+//}
 
 /**
  * We use one socket.io room for each workflow instance. (The room name is the workflow id).
@@ -138,17 +105,18 @@ function sendTasksStatuses(workflowId : string, statuses : Statuses)
 export function setupWebsockets(server)
 {
   io = socketio.listen(server);
+  controller.registerSockets(io);
 
   io.on('connection', function (socket) {
     socket.emit('hello', {});
 
     // Get and send the status of all tasks of the given workflow
-    function sendWorkflowStatus(workflowId : string, tasks : Task[]) {
-      let paths = controller.getTasksPaths(tasks);
-      let statuses = redis.getTasksStatuses(paths, workflowId)
+    function sendWorkflowStatus(workflow : Workflow) {
+      let paths = workflow.getAllPaths();
+      let statuses = redis.getTasksStatuses(paths, workflow.id)
         .then(statuses => {
           socket.emit('setTasksStatuses', {
-            id: workflowId,
+            id: workflow.id,
             statuses
           });
         });
@@ -162,21 +130,21 @@ export function setupWebsockets(server)
           socket.join(workflowId);
 
           // Send the workflow description
-          let tasks = controller.generateWorkflow(workflowHash.generator, workflowHash.generatorData);
-          let descritption = controller.describeWorkflow(tasks).tasks;
+          let workflow = controller.generateWorkflow(workflowHash.generator, workflowHash.generatorData, workflowId);
+          let descritption = workflow.describe();
           socket.emit('workflowDescription', {
             id: workflowId,
-            tasks: descritption,
+            tasks: descritption.tasks,
           });
 
           // Get initial status
-          sendWorkflowStatus(workflowId, tasks);
+          sendWorkflowStatus(workflow);
         });
     });
 
     socket.on('executeTask', function (args) {
       let {workflowId, taskPath} = args;
-      executeOneTask(workflowId, taskPath, socket);
+      controller.executeOneTask(workflowId, taskPath, socket);
     });
   });
 }
