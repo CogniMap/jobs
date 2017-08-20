@@ -3,7 +3,6 @@ const EventEmitter = require('events');
 
 import {
   ExecutionErrorType,
-  Status, 
   ControllerInterface
 } from './index.d';
 import {Redis} from './redis';

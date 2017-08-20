@@ -5,7 +5,7 @@ Promise.promisifyAll(RedisClass.Multi.prototype);
 
 import {
   WorkflowHash, TaskHash,
-  Statuses, Status
+  Statuses, TaskStatus, WorkflowStatus,
 } from './index.d';
 
 /**
@@ -67,6 +67,8 @@ export class Redis
   {
     let query = this.redis.multi();
     query.hmset('workflow_' + workflowId, this.redify({
+      status: "working" as WorkflowStatus,
+
       generator: workflowGenerator,
       generatorData,
 
@@ -112,11 +114,16 @@ export class Redis
     return this.getWorkflowField(workflowId, 'workflowName');
   }
 
+  public setWorkflowStatus(workflowId, status : WorkflowStatus)
+  {
+    return this.redis.hsetAsync("workflow_" + workflowId, 'status', JSON.stringify(status));
+  }
+
   /********************************************************
    * Tasks
    *******************************************************/
 
-  public setTaskStatus(workflowId : string, taskPath : string, status : Status)
+  public setTaskStatus(workflowId : string, taskPath : string, status : TaskStatus)
   {
     return this.redis.hsetAsync(this.getTaskHash(workflowId, taskPath), 'status', JSON.stringify(status));
   }

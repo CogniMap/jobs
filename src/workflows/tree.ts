@@ -4,13 +4,13 @@ import { Redis } from '../redis';
 import { BaseWorkflow } from './workflow';
 import {
   WorkflowTreeTasks,
-  BaseTask,
-  ExecutionErrorType, Factory,
+  Tasks, BaseTask,
+  ControllerInterface, ExecutionErrorType, Factory,
 } from '../index.d';
 import { promisesFor } from '../promises';
 import { update } from '../immutability';
 
-class TreeTask extends BaseTask
+class TreeTask extends BaseTask implements Tasks.TreeTask
 {
   public task : { (arg: any, factory) : Promise<any>; };
   public children: TreeTask[];
@@ -41,7 +41,7 @@ export class TreeWorkflow extends BaseWorkflow
     let self = this;
     function _getTask(tasks: TreeTask[], targetPath: string, currentContext = {}, prevResult = {}, currentPath = '#', minExecutionTime: number = 0): Promise<{
       context: { [varName: string]: any; };
-      task: Task;
+      task: TreeTask;
       prevResult: any,
     }> {
       return promisesFor(tasks, (i, task : TreeTask, breakFor, continueFor) => {
@@ -140,5 +140,70 @@ export class TreeWorkflow extends BaseWorkflow
     }
 
     return getPaths(this.tasks);
+  }
+
+  public execute(controller : ControllerInterface, callerSocket = null) : void
+  {
+    let self = this;
+    function executeNextTask(path : string) {
+      try {
+        let nextPath = self.getNextTask(path);
+        controller.executeOneTask(this.id, path, callerSocket).then((jobEvents : any) => {
+          jobEvents.on('complete', function (res) {
+            executeNextTask(nextPath);
+          });
+        });
+      } catch (e) {
+        if (e === "NoNextTask") {
+          controller.finishWorkflow(self.id);
+        } else {
+          throw e;
+        }
+      }
+    }
+
+    executeNextTask('#.' + this.tasks[0].name);
+  }
+
+  /**
+   * Get the next task path in the tree
+   */
+  public getNextTask(taskPath: string)
+  {
+    let self = this;
+
+    /**
+     * When the target task is found :
+     *  - If it is not the last task of the tasks array, return the next one
+     *  - Else, return the next task of the parent. If we are at the root level (ie parentPath == '#'),
+     *  throw a "NoNextTask" exception.
+     */
+    function aux(tasks: TreeTask[], targetPath, parentPath = '#') {
+      for (let i = 0; i < tasks.length; i++) {
+        let task = tasks[i];
+        let taskPath = parentPath + '.' + task.name;
+        if (taskPath == targetPath) {
+          if (i < tasks.length - 1) {
+            return parentPath + '.' + tasks[i + 1].name;
+          } else {
+            if (parentPath == '#') {
+              throw "NoNextTask";
+            } else {
+              return self.getNextTask(parentPath);
+            }
+          }
+        } else if (targetPath.startsWith(taskPath)) {
+          if (task.children.length > 0) {
+            return aux(task.children, targetPath, taskPath);
+          } else {
+            throw new Error('Missing task : "' + targetPath + '" !');
+          }
+        } else {
+          continue;
+        }
+      }
+    }
+
+    return aux(this.tasks, taskPath);
   }
 }

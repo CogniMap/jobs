@@ -4,12 +4,14 @@ const uniqid = require('uniqid');
 import {Controller } from './controller';
 import {Jobs} from './jobs';
 import {
-  WorkflowGenerator, WorkflowHash, Workflow,
+  WorkflowGenerator, WorkflowHash, Workflow, WorkflowStatus,
   TaskHash, Task, TaskError,
-  Statuses, Status
+  Statuses, TaskStatus
 } from './index.d';
 import {Redis} from './redis';
 import {update} from './immutability';
+
+export const Workflows = require('./workflows');
 
 const redisConfig = {
   host: "supervisionRedis",
@@ -39,10 +41,9 @@ export function createWorkflowInstance(workflowGenerator: string, workflowData: 
 
   return redis.initWorkflow(workflowGenerator, workflowData, paths, workflowId, baseContext)
     .then(() => {
-      // TODO
-      //if (execute) {
-      //  executeAllTasks(workflow);
-      //}
+      if (execute) {
+        workflow.execute(controller, null);
+      }
 
       return workflowId;
     });
@@ -67,22 +68,6 @@ export function updateWorkflow(workflowId : string, workflowUpdater) : Promise<{
 }
 
 /**
- * Execute all tasks of a workflow from @param startPath. If @param startPath == "#",
- * then all tasks are executed.
- *
- * TODO
- */
-//export function executeAllTasks(workflow : Workflow, startPath : string = '#', callerSocket = null)
-//{
-//  executeOneTask(workflow, startPath, callerSocket).then((jobEvents : any) => {
-//    jobEvents.on('complete', function (res) {
-//      let nextTaskPath = controller.getNextTask(tasks, startPath);
-//      executeOneTask(workflow, nextTaskPath, callerSocket);
-//    });
-//  });
-//}
-
-/**
  * We use one socket.io room for each workflow instance. (The room name is the workflow id).
  * This way, several clients can watch one workflow progression.
  *
@@ -91,6 +76,7 @@ export function updateWorkflow(workflowId : string, workflowUpdater) : Promise<{
  * Upon arrival, the client can send the following messages :
  *  - "watchWorkflowInstance" : To be notified of the worklow progress
  * When in a workflow instance room, the server send the following messages :
+ *  - setWorkflowStatus(status : string)
  *  - setTasksStatuses(taskPath : string, status : string, body ?: JSON string)
  *     Status is one of the following :
  *      - "queued" : The task will be executed soon
@@ -111,7 +97,9 @@ export function setupWebsockets(server)
     socket.emit('hello', {});
 
     // Get and send the status of all tasks of the given workflow
-    function sendWorkflowStatus(workflow : Workflow) {
+    function sendWorkflowStatus(workflowHash : WorkflowHash, workflow : Workflow) {
+      socket.emit('setWorkflowStatus', workflowHash.status);
+
       let paths = workflow.getAllPaths();
       let statuses = redis.getTasksStatuses(paths, workflow.id)
         .then(statuses => {
@@ -138,7 +126,7 @@ export function setupWebsockets(server)
           });
 
           // Get initial status
-          sendWorkflowStatus(workflow);
+          sendWorkflowStatus(workflowHash, workflow);
         });
     });
 

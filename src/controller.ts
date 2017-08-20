@@ -3,7 +3,7 @@ import {
   Workflow, WorkflowGenerator, WorkflowHash,
   Task, TaskHash, TaskError,
   ExecutionErrorType,
-  Statuses, Status,
+  Statuses, TaskStatus, WorkflowStatus,
   Factory, ControllerInterface
 } from './index.d';
 import { Redis } from './redis';
@@ -68,49 +68,6 @@ export class Controller implements ControllerInterface
       return workflow;
     }
   }
-
-  /**
-   * Get the next task path for the given workflow.
-   */
-  //public getNextTask(workflowTasks: Task[], taskPath: string)
-  //{
-  //  let self = this;
-
-  //  /**
-  //   * When the target task is found :
-  //   *  - If it is not the last task of the tasks array, return the next one
-  //   *  - Else, return the next task of the parent. If we are at the root level (ie parentPath == '#'),
-  //   *  throw a "NoNextTask" exception.
-  //   */
-  //  function aux(tasks: Task[], targetPath, parentPath = '#') {
-  //    for (let i = 0; i < tasks.length; i++) {
-  //      let task = tasks[i];
-  //      let taskPath = parentPath + '.' + task.name;
-  //      if (taskPath == targetPath) {
-  //        if (i < tasks.length - 1) {
-  //          return parentPath + '.' + tasks[i + 1].name;
-  //        } else {
-  //          if (parentPath == '#') {
-  //            throw "NoNextTask";
-  //          } else {
-  //            return self.getNextTask(workflowTasks, parentPath);
-  //          }
-  //        }
-  //      } else if (targetPath.startsWith(taskPath)) {
-  //        switch (task.type) {
-  //          case TaskType.SINGLE:
-  //            throw new Error('Missing task : "' + targetPath + '" !');
-  //          case TaskType.PARALLELS:
-  //            return aux((task as ParallelsTasks).subTasks, targetPath, taskPath);
-  //          }
-  //      } else {
-  //        continue;
-  //      }
-  //    }
-  //  }
-
-  //  return aux(workflowTasks, taskPath);
-  //}
   
   /**
    * Mark the task as queued, and then execute eit and register listeners to broadcast results
@@ -158,6 +115,15 @@ export class Controller implements ControllerInterface
     }
   }
 
+  public finishWorkflow(workflowId : string)
+  {
+    this.redis.setWorkflowStatus(workflowId, "done" as WorkflowStatus);
+
+    if (this.io != null) {
+      this.io.sockets.in(workflowId).emit('setWorkflowStatus', 'done' as WorkflowStatus);
+    }
+  }
+
   /**
    * Run a SINGLE task of a workflow instance.
    *
@@ -195,7 +161,7 @@ export class Controller implements ControllerInterface
               if (! task.condition(context)) {
                 // Bypass this task, and mark it as executed
                 let taskHash = {
-                  status: 'ok' as Status,
+                  status: 'ok' as TaskStatus,
                   argument,
                   context,
                   body: {message: 'Task skipped'},
@@ -273,7 +239,7 @@ export class Controller implements ControllerInterface
 
                   // Update the task hash
                   let taskHash = {
-                    status: 'ok' as Status,
+                    status: 'ok' as TaskStatus,
                     argument,
                     context: callingContext,
                     body: res || null,

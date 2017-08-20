@@ -4,7 +4,21 @@ export function updateWorkflow(workflowId : string, workflowUpdater : any) : Pro
 export function setupWebsockets(server : any);
 export function registerWorkflowGenerator(name : string, generator : WorkflowGenerator);
 
-type Status = "inactive" | "queued" | "ok" | "failed";
+type TaskStatus = "inactive" | "queued" | "ok" | "failed";
+type WorkflowStatus = "working" | "done";
+
+export namespace Tasks {
+  export interface TreeTask extends Task {
+    task : { (arg : any, factory : Factory) : Promise<any> };
+    children : TreeTask[];
+  }
+}
+
+export namespace Workflows {
+  export class TreeWorkflow {
+    constructor(tasks : Tasks.TreeTask[]);
+  }
+}
 
 export interface WorkflowTreeTasks {
     [i: number]: {
@@ -16,7 +30,7 @@ export interface WorkflowTreeTasks {
 
 export interface Statuses {
     [taskPath : string]: {
-      status: Status;
+      status: TaskStatus;
       body: any;
       context : any;
       argument : any;
@@ -27,7 +41,9 @@ export interface Statuses {
 
 export interface ControllerInterface
 {
+  executeOneTask(workflowId : string, taskPath : string, callerSocket ?: any);
   run(workflowId : string, path ?: string, baseContext ?: any, argument ?: any): Promise<any>;
+  finishWorkflow(workflowId : string);
 }
 
 export interface Task {
@@ -53,6 +69,7 @@ export interface Task {
 export abstract class BaseTask implements Task
 {
   public name;
+  public contextVar;
   public execute(arg, factory);
 }
 
@@ -85,6 +102,11 @@ export interface Workflow
    * Get a description of the workflow tasks.
    */
   describe() : {tasks: WorkflowTreeTasks;};
+
+  /**
+   * Execute the whole workflow (until error)
+   */
+  execute(controller : ControllerInterface, callerSocket : any) : void;
 }
 
 declare namespace ExecutionErrorType {
@@ -109,6 +131,8 @@ export interface WorkflowGenerator {
 }
 
 export interface WorkflowHash {
+  status: WorkflowStatus;
+
   baseContext: any;
   
   generator: string;
@@ -117,7 +141,7 @@ export interface WorkflowHash {
 
 export interface TaskHash {
   // Result
-  status: Status;
+  status: TaskStatus;
   body: any;
   executionTime: number;
 

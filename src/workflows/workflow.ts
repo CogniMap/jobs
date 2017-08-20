@@ -1,4 +1,4 @@
-import { WorkflowTreeTasks, Task, Workflow } from '../index.d';
+import { ControllerInterface, WorkflowTreeTasks, Task, Workflow } from '../index.d';
 import { Redis } from '../redis';
 
 export abstract class BaseWorkflow implements Workflow
@@ -13,4 +13,5 @@ export abstract class BaseWorkflow implements Workflow
     }>;
   public abstract getAllPaths() : string[];
   public abstract describe() : {tasks: WorkflowTreeTasks;};
+  public abstract execute(controller : ControllerInterface, callerSocket) : void;
 }
