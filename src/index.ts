@@ -3,11 +3,10 @@ const uniqid = require('uniqid');
 
 import {Controller } from './controller';
 import {Jobs} from './jobs';
-import {WorkflowGenerator, WorkflowHash, TaskHash, Task, TaskError, Statuses, Status} from './types';
+import {WorkflowGenerator, WorkflowHash, TaskHash, Task, TaskError, Statuses, Status} from './index.d';
 import {Redis} from './redis';
 import {update} from './immutability';
 
-console.log('INIT JOBS');
 const redisConfig = {
   host: "supervisionRedis",
   port: 6379,
@@ -66,7 +65,7 @@ export function updateWorkflow(workflowId : string, workflowUpdater) : Promise<{
  * Execute all tasks of a workflow from @param startPath. If @param startPath == "#",
  * then all tasks are executed.
  */
-function executeAllTasks(tasks : Task[], workflowId : string, startPath : string = '#', callerSocket = null)
+export function executeAllTasks(tasks : Task[], workflowId : string, startPath : string = '#', callerSocket = null)
 {
   executeOneTask(workflowId, startPath, callerSocket).then((jobEvents : any) => {
     jobEvents.on('complete', function (res) {
@@ -136,7 +135,8 @@ function sendTasksStatuses(workflowId : string, statuses : Statuses)
  *     Cf setTasksStatuses() for more details
  *  - workflowDescription(tasks) Send a WorkflowTasks to the client
  */
-export function setupWebsockets(server) {
+export function setupWebsockets(server)
+{
   io = socketio.listen(server);
 
   io.on('connection', function (socket) {

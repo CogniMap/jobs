@@ -6,7 +6,7 @@ Promise.promisifyAll(RedisClass.Multi.prototype);
 import {
   WorkflowHash, TaskHash,
   Statuses, Status
-} from './types';
+} from './index.d';
 
 /**
  * Interface to the redis client.

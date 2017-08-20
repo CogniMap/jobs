@@ -2,7 +2,7 @@ const kue = require('kue');
 const EventEmitter = require('events');
 
 import {Controller} from './controller';
-import {ExecutionErrorType, Status} from './types';
+import {ExecutionErrorType, Status} from './index.d';
 import {Redis} from './redis';
 import {reduce} from './objects';
 

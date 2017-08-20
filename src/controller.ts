@@ -4,7 +4,7 @@ import {
   TaskType, Task, WorkflowTasks,
   ExecutionErrorType,
   Statuses, Status
-} from './types';
+} from './index.d';
 import { Redis } from './redis';
 import { promisesFor } from './promises';
 const Promise = require('bluebird');

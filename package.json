@@ -18,5 +18,5 @@
     "uniqid": "^4.1.1"
   },
   "main": "./dist/index.js",
-  "types": "./src/types.d.ts"
+  "types": "./src/index.d.ts"
 }

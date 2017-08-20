@@ -1,3 +1,10 @@
+export function createWorkflowInstance(workflowGenerator: string, workflowData: any, baseContext ?: any, execute ?: boolean) : Promise<string>;
+export function updateWorkflow(workflowId : string, workflowUpdater : any) : Promise<{}>;
+export function executeAllTasks(tasks : Task[], workflowId : string, startPath ?: string, callerSocket ?: any);
+export function executeOneTask(workflowId : string, taskPath : string, callerSocket ?: any);
+export function setupWebsockets(server : any);
+export function registerWorkflowGenerator(name : string, generator : WorkflowGenerator);
+
 type Status = "inactive" | "queued" | "ok" | "failed";
 
 export interface WorkflowTasks {
