@@ -1,0 +1,22 @@
+{
+  "name": "jobs",
+  "version": "0.0.1",
+  "license": "GPL-3",
+  "description": "Scheduler asynchronous of tasks workflows, that allow step by step execution .",
+  "scripts": {
+    "build-backend": "cd backend && tsc"
+  },
+  "devDependencies": {
+    "@types/node": "^8.0.7"
+  },
+  "dependencies": {
+    "bluebird": "^3.5.0",
+    "immutability-helper": "^2.3.1",
+    "kue": "^0.11.6",
+    "redis": "^2.8.0",
+    "socket.io": "^2.0.3",
+    "uniqid": "^4.1.1"
+  },
+  "main": "./dist/index.js",
+  "types": "./src/types.d.ts"
+}

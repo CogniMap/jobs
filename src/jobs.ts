@@ -2,9 +2,9 @@ const kue = require('kue');
 const EventEmitter = require('events');
 
 import {Controller} from './controller';
-import {ExecutionErrorType, Status} from '../commons/types';
+import {ExecutionErrorType, Status} from './types';
 import {Redis} from './redis';
-import {reduce} from '../commons/objects';
+import {reduce} from './objects';
 
 export namespace Priority {
   export const LOW = 'low';
@@ -15,7 +15,6 @@ export namespace Priority {
 
 interface RunTaskJob {
   data: {
-    workflowName: string;
     workflowId: string;
     taskPath: string;
     argument: any;
@@ -65,7 +64,7 @@ export class Jobs {
     let self = this;
     this.redis.getWorkflowField(job.data.workflowId, 'baseContext')
       .then(baseContext => {
-        this.controller.run(job.data.workflowName, job.data.taskPath, job.data.workflowId, baseContext, job.data.argument)
+        this.controller.run(job.data.workflowId, job.data.taskPath, baseContext, job.data.argument)
         
           /**
            * Task success
@@ -108,10 +107,9 @@ export class Jobs {
    *  - job:progress
    *  - job:start
    */
-  public runTask(workflowName, workflowId, taskPath, argument= null) {
+  public runTask(workflowId, taskPath, argument= null) {
     let jobEvents = new JobEvents();
     let job = this.queue.create('runTask', {
-      workflowName,
       workflowId,
       taskPath,
       argument,

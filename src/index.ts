@@ -1,10 +1,11 @@
 const socketio = require('socket.io');
 const uniqid = require('uniqid');
 
-import {Controller, Task} from './controller';
+import {Controller } from './controller';
 import {Jobs} from './jobs';
-import {TaskError, Statuses, Status} from '../commons/types';
-import {Redis, TaskHash} from './redis';
+import {WorkflowGenerator, WorkflowHash, TaskHash, Task, TaskError, Statuses, Status} from './types';
+import {Redis} from './redis';
+import {update} from './immutability';
 
 console.log('INIT JOBS');
 const redisConfig = {
@@ -22,19 +23,21 @@ let io = null;
  *
  * Clients can then watch its progression with the websocket interface.
  *
+ * @param workflowData Is the data used by the workflow generator
  * @param execute If true, execute all tasks (until error) of the workflow.
  */
-export function createWorkflowInstance(workflowName : string, baseContext = {}, execute : boolean = false) : Promise<string>
+export function createWorkflowInstance(workflowGenerator: string, workflowData: any, baseContext = {}, execute : boolean = false) : Promise<string>
 {
   let workflowId = uniqid();
 
   // Initialize the workflow instance in redis create tasks hashes
-  let paths = controller.getTasksPaths(workflowName);
+  let tasks = controller.generateWorkflow(workflowGenerator, workflowData);
+  let paths = controller.getTasksPaths(tasks);
 
-  return redis.initWorkflow(workflowName, paths, workflowId, baseContext)
+  return redis.initWorkflow(workflowGenerator, workflowData, paths, workflowId, baseContext)
     .then(() => {
       if (execute) {
-        executeAllTasks(workflowName, workflowId);
+        executeAllTasks(tasks, workflowId);
       }
 
       return workflowId;
@@ -42,14 +45,32 @@ export function createWorkflowInstance(workflowName : string, baseContext = {}, 
 }
 
 /**
+ * Update the parameters of a workflow (the generator name, argument etc)
+ * This update does not invalidate already executed steps of the workflow.
+ *
+ * Notify watchers of this workflow instance, if any
+ *
+ * @param workflowUpdater An updater of a WorkflowHash object
+ */
+export function updateWorkflow(workflowId : string, workflowUpdater) : Promise<{}>
+{
+  return redis.getWorkflow(workflowId)
+    .then((workflow : WorkflowHash) => {
+      let newWorkflow = update(workflow, workflowUpdater);
+
+      return redis.saveWorkflow(workflowId, newWorkflow);
+    })
+}
+
+/**
  * Execute all tasks of a workflow from @param startPath. If @param startPath == "#",
  * then all tasks are executed.
  */
-function executeAllTasks(workflowName : string, workflowId : string, startPath : string = '#', callerSocket = null)
+function executeAllTasks(tasks : Task[], workflowId : string, startPath : string = '#', callerSocket = null)
 {
   executeOneTask(workflowId, startPath, callerSocket).then((jobEvents : any) => {
     jobEvents.on('complete', function (res) {
-      let nextTaskPath = controller.getNextTask(workflowName, startPath);
+      let nextTaskPath = controller.getNextTask(tasks, startPath);
       executeOneTask(workflowId, nextTaskPath, callerSocket);
     });
   });
@@ -61,31 +82,28 @@ function executeAllTasks(workflowName : string, workflowId : string, startPath :
  */
 export function executeOneTask(workflowId : string, taskPath : string, callerSocket = null)
 {
-  return redis.getWorkflowName(workflowId)
-    .then(workflowName => {
-      redis.setTaskStatus(workflowId, taskPath, 'queued').then(() => {
-      return jobs.runTask(workflowName, workflowId, taskPath)
-        .on('complete', function (taskHash : TaskHash) {
-          sendTasksStatuses(workflowId, {
-            [taskPath]: {
-              status: 'ok',
-              ... taskHash,
-            }
-          });
-        })
-        .on('failed', function (err : TaskError) {
-          sendTasksStatuses(workflowId, {
-            [taskPath]: {
-              status: 'failed',
-              ... err.payload
-            }
-          });
-        })
-        .on('error', function (err) {
-          if (callerSocket != null) {
-            callerSocket.emit('executionError', err);
+  return redis.setTaskStatus(workflowId, taskPath, 'queued').then(() => {
+    return jobs.runTask(workflowId, taskPath)
+      .on('complete', function (taskHash : TaskHash) {
+        sendTasksStatuses(workflowId, {
+          [taskPath]: {
+            status: 'ok',
+            ... (taskHash as any),
           }
         });
+      })
+      .on('failed', function (err : TaskError) {
+        sendTasksStatuses(workflowId, {
+          [taskPath]: {
+            status: 'failed',
+            ... err.payload
+          }
+        });
+      })
+      .on('error', function (err) {
+        if (callerSocket != null) {
+          callerSocket.emit('executionError', err);
+        }
       });
     });
 }
@@ -125,8 +143,8 @@ export function setupWebsockets(server) {
     socket.emit('hello', {});
 
     // Get and send the status of all tasks of the given workflow
-    function sendWorkflowStatus(workflowName : string, workflowId : string) {
-      let paths = controller.getTasksPaths(workflowName);
+    function sendWorkflowStatus(workflowId : string, tasks : Task[]) {
+      let paths = controller.getTasksPaths(tasks);
       let statuses = redis.getTasksStatuses(paths, workflowId)
         .then(statuses => {
           socket.emit('setTasksStatuses', {
@@ -138,20 +156,21 @@ export function setupWebsockets(server) {
 
     // Watch a workflow instance events
     socket.on('watchWorkflowInstance', function (workflowId) {
-      redis.getWorkflowName(workflowId)
-        .then(workflowName => {
+      redis.getWorkflow(workflowId)
+        .then((workflowHash : WorkflowHash) => {
           // Join the workflow room for progression udpates broadcast
           socket.join(workflowId);
 
           // Send the workflow description
-          let tasks = controller.describeWorkflow(workflowName).tasks;
+          let tasks = controller.generateWorkflow(workflowHash.generator, workflowHash.generatorData);
+          let descritption = controller.describeWorkflow(tasks).tasks;
           socket.emit('workflowDescription', {
             id: workflowId,
-            tasks
+            tasks: descritption,
           });
 
           // Get initial status
-          sendWorkflowStatus(workflowName, workflowId);
+          sendWorkflowStatus(workflowId, tasks);
         });
     });
 
@@ -165,7 +184,7 @@ export function setupWebsockets(server) {
 /**
  * Proxy to the controller's function
  */
-export function registerWorkflow(name, tasks : Task[])
+export function registerWorkflowGenerator(name : string, generator : WorkflowGenerator)
 {
-  return controller.registerWorkflow(name, tasks);
+  return controller.registerWorkflowGenerator(name, generator);
 }

@@ -3,26 +3,10 @@ const Promise = require('bluebird');
 Promise.promisifyAll(RedisClass.RedisClient.prototype);
 Promise.promisifyAll(RedisClass.Multi.prototype);
 
-import { Statuses, Status } from '../commons/types';
-
-export interface WorfklowHash {
-  baseContext: any;
-  worfklowName: string;
-}
-
-export interface TaskHash {
-  // Result
-  status: Status;
-  body: any;
-  executionTime: number;
-
-  // Execution context
-  argument: any;
-  context: any;
-
-  // During execution
-  contextUpdaters ?: any[];
-}
+import {
+  WorkflowHash, TaskHash,
+  Statuses, Status
+} from './types';
 
 /**
  * Interface to the redis client.
@@ -79,13 +63,15 @@ export class Redis
    * Workflows
    *******************************************************/
 
-  public initWorkflow(workflowName : string, paths : string[], workflowId : string, baseContext)
+  public initWorkflow(workflowGenerator: string, generatorData : any, paths : string[], workflowId : string, baseContext)
   {
     let query = this.redis.multi();
     query.hmset('workflow_' + workflowId, this.redify({
-      workflowName,
+      generator: workflowGenerator,
+      generatorData,
+
       baseContext
-    }));
+    } as WorkflowHash));
     for (let path of paths) {
       query.hmset('workflowTask_' + workflowId + '_' + path, this.redify({
         status: "inactive",
@@ -100,9 +86,14 @@ export class Redis
     return query.execAsync();
   }
 
-  public getWorkflow(workflowId : string) : Promise<WorfklowHash>
+  public getWorkflow(workflowId : string) : Promise<WorkflowHash>
   {
     return this.redis.hgetallAsync('workflow_' + workflowId).then(this.parse);
+  }
+
+  public saveWorkflow(workflowId : string, workflow : WorkflowHash) : Promise<{}>
+  {
+    return this.redis.hmset('workflow_' + workflowId, this.redify(workflow));
   }
 
   public getWorkflowField(workflowId : string, field : string) : Promise<any>

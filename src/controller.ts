@@ -1,30 +1,15 @@
 import {Jobs} from './jobs';
-import { ExecutionErrorType, Statuses, WorkflowTasks, Status } from '../commons/types';
+import {
+  WorkflowGenerator, WorkflowHash,
+  TaskType, Task, WorkflowTasks,
+  ExecutionErrorType,
+  Statuses, Status
+} from './types';
 import { Redis } from './redis';
-import { promisesFor } from '../commons/promises';
+import { promisesFor } from './promises';
 const Promise = require('bluebird');
 
-import { update } from '../commons/immutability';
-
-export enum TaskType {
-  SINGLE = 1,
-  PARALLELS=  2,
-}
-
-export interface Task {
-  type: TaskType,
-  name: string;
-
-  contextVar ?: string; // If set, the task result will be added to the future contexts.
-
-  condition ?: { (context): boolean; };
-  /**
-   * If set, this callback is executed with the task result and task context.
-   * The context does not contain the result, even if "contextVar" is set.
-   */
-  debug ?: { (res, debug): void; };
-  onComplete ?: string;
-}
+import { update } from './immutability';
 
 interface Factory {
   context : any;
@@ -62,35 +47,45 @@ export interface ParallelsTasks extends Task {
  *    - executionTime : number (last execution)
  */
 export class Controller {
-  private workflows: {
-    [name: string]: {
-      tasks: Task[]; // Readonly !
-    }
+  private generators: {
+    [name: string]: WorkflowGenerator;
   };
   private redis : Redis;
   private io;
   private jobs: Jobs;
 
   public constructor(redis) {
-    this.workflows = {};
+    this.generators = {};
     this.redis = redis;
   }
 
   /**
-   * Create a workflow context generator. That context have the same tree structure
-   * that the workflow, and hold results of all tasks.
+   * Create a workflow generator. This allows to create a custom tasks schema from any data.
    */
-  public registerWorkflow(name: string, tasks: Task[]) {
-    this.workflows[name] = {
-      tasks,
-    };
-    // TODO clean all previous results for this name
+  public registerWorkflowGenerator(name: string, generator : WorkflowGenerator)
+  {
+    this.generators[name] = generator;
+  }
+
+  /**
+   * Call a generator to create the workflow tasks.
+   *
+   * TODO cache result ?
+   */
+  public generateWorkflow(generator : string, data : any) : Task[]
+  {
+    if (this.generators[generator] == null) {
+      throw new Error('Unknow workflow generator : ' + generator);
+    } else {
+      return this.generators[generator](data);
+    }
   }
 
   /**
    * Get the next task path for the given workflow.
    */
-  public getNextTask(workflowName: string, taskPath: string) {
+  public getNextTask(workflowTasks: Task[], taskPath: string)
+  {
     let self = this;
 
     /**
@@ -110,7 +105,7 @@ export class Controller {
             if (parentPath == '#') {
               throw "NoNextTask";
             } else {
-              return self.getNextTask(workflowName, parentPath);
+              return self.getNextTask(workflowTasks, parentPath);
             }
           }
         } else if (targetPath.startsWith(taskPath)) {
@@ -126,8 +121,7 @@ export class Controller {
       }
     }
 
-    let workflow = this.workflows[workflowName];
-    return aux(workflow.tasks, taskPath);
+    return aux(workflowTasks, taskPath);
   }
 
   /**
@@ -135,7 +129,7 @@ export class Controller {
    *
    * Return a promise resolving to the result of this task.
    */
-  public run(workflowName: string, path = '#', workflowId, baseContext = {}, argument = null): Promise<any> {
+  public run(workflowId : string, path = '#', baseContext = {}, argument = null): Promise<any> {
     let self = this;
 
     /**
@@ -222,134 +216,137 @@ export class Controller {
     }
 
     let currentDate = new Date();
-    let {tasks} = this.workflows[workflowName];
-    return getTask(tasks, path, baseContext)
-      .then(res => {
-        let {task, context, prevResult} = res;
-        if (argument == null) {
-          argument = prevResult;
-        }
+    return this.redis.getWorkflow(workflowId)
+      .then((workflowHash : WorkflowHash) => {
+        let tasks = self.generateWorkflow(workflowHash.generator, workflowHash.generatorData);
+        return getTask(tasks, path, baseContext)
+          .then(res => {
+            let {task, context, prevResult} = res;
+            if (argument == null) {
+              argument = prevResult;
+            }
 
-        /**
-         * Actual execution of the task
-         */
+            /**
+             * Actual execution of the task
+             */
 
-        if (task.condition != null) {
-          if (! task.condition(context)) {
-            // Bypass this task, and mark it as executed
-            let taskHash = {
-              status: 'ok' as Status,
-              argument,
-              context,
-              body: {message: 'Task skipped'},
-              contextUpdaters: [],
-              executionTime: currentDate.getTime(),
-            };
-            return self.redis.setTask(workflowId, path, taskHash);
-          }
-        }
-
-        switch (task.type) {
-          case TaskType.PARALLELS:
-            // TODO
-            return Promise.reject({
-              type: ExecutionErrorType.SCHEDULER_ERROR,
-              payload: {
-                body: 'Parallels not supported yet',
-                argument, context,
-              },
-            });
-          case TaskType.SINGLE:
-            let contextUpdaters = [];
-            let callingContext = context; // The "received" context before executing the task callback
-            let factory = {
-              /**
-               * Read only context.
-               */
-              context,
-
-              /**
-               * Pure functional : no side effects. The updater is also serialized in the redis database.
-               */
-              updateContext(updater) {
-                contextUpdaters.push(updater);
-                try {
-                  this.context = update(this.context, updater);
-                } catch (e) {
-                  // TODO return  ExecutionErrorType.CONTEXT_UPDATE
-                  console.log(e);
-                }
-              },
-              /**
-               * Update or create a sequelize entity.
-               */
-              saveInstance(model, data) {
-                if (data.id == null) {
-                  // Create a new instance.
-                  return model.create(data);
-                } else {
-                  return model.findById(data.id)
-                    .then(instance => {
-                      return instance.update(data);
-                    });
-                }
+            if (task.condition != null) {
+              if (! task.condition(context)) {
+                // Bypass this task, and mark it as executed
+                let taskHash = {
+                  status: 'ok' as Status,
+                  argument,
+                  context,
+                  body: {message: 'Task skipped'},
+                  contextUpdaters: [],
+                  executionTime: currentDate.getTime(),
+                };
+                return self.redis.setTask(workflowId, path, taskHash);
               }
-            };
-            try {
-              return (task as SingleTask).task(argument, factory)
-                .catch(err => {
+            }
+
+            switch (task.type) {
+              case TaskType.PARALLELS:
+                // TODO
+                return Promise.reject({
+                  type: ExecutionErrorType.SCHEDULER_ERROR,
+                  payload: {
+                    body: 'Parallels not supported yet',
+                    argument, context,
+                  },
+                });
+              case TaskType.SINGLE:
+                let contextUpdaters = [];
+                let callingContext = context; // The "received" context before executing the task callback
+                let factory = {
+                  /**
+                   * Read only context.
+                   */
+                  context,
+
+                  /**
+                   * Pure functional : no side effects. The updater is also serialized in the redis database.
+                   */
+                  updateContext(updater) {
+                    contextUpdaters.push(updater);
+                    try {
+                      this.context = update(this.context, updater);
+                    } catch (e) {
+                      // TODO return  ExecutionErrorType.CONTEXT_UPDATE
+                      console.log(e);
+                    }
+                  },
+                  /**
+                   * Update or create a sequelize entity.
+                   */
+                  saveInstance(model, data) {
+                    if (data.id == null) {
+                      // Create a new instance.
+                      return model.create(data);
+                    } else {
+                      return model.findById(data.id)
+                        .then(instance => {
+                          return instance.update(data);
+                        });
+                    }
+                  }
+                };
+                try {
+                  return (task as SingleTask).task(argument, factory)
+                    .catch(err => {
+                      return Promise.reject({
+                        type: ExecutionErrorType.EXECUTION_FAILED,
+                        payload: {
+                          body: err,
+                          argument,
+                          context: callingContext,
+                          contextUpdaters,
+                        }
+                      });
+                    })
+                    .then(res => {
+                      // Middleware to perform operations with the task result
+
+                      if (task.onComplete != null) {
+                        // TODO logging
+                        console.log(task.onComplete);
+                      }
+
+                      if (task.debug != null) {
+                        task.debug(res, factory.context);
+                      }
+
+                      // Update the task hash
+                      let taskHash = {
+                        status: 'ok' as Status,
+                        argument,
+                        context: callingContext,
+                        body: res || null,
+                        contextUpdaters,
+                        executionTime: currentDate.getTime(),
+                      };
+                      return self.redis.setTask(workflowId, path, taskHash);
+                    });
+                } catch (err) { 
+                  // Direct exception in the task callback
                   return Promise.reject({
                     type: ExecutionErrorType.EXECUTION_FAILED,
                     payload: {
-                      body: err,
+                      body: typeof err == 'string' ? err : err.toString(),
                       argument,
                       context: callingContext,
-                      contextUpdaters,
                     }
                   });
-                })
-                .then(res => {
-                  // Middleware to perform operations with the task result
-
-                  if (task.onComplete != null) {
-                    // TODO logging
-                    console.log(task.onComplete);
-                  }
-
-                  if (task.debug != null) {
-                    task.debug(res, factory.context);
-                  }
-
-                  // Update the task hash
-                  let taskHash = {
-                    status: 'ok' as Status,
-                    argument,
-                    context: callingContext,
-                    body: res || null,
-                    contextUpdaters,
-                    executionTime: currentDate.getTime(),
-                  };
-                  return self.redis.setTask(workflowId, path, taskHash);
-                });
-            } catch (err) { 
-              // Direct exception in the task callback
-              return Promise.reject({
-                type: ExecutionErrorType.EXECUTION_FAILED,
-                payload: {
-                  body: typeof err == 'string' ? err : err.toString(),
-                  argument,
-                  context: callingContext,
                 }
-              });
             }
-        }
+          });
       });
   }
 
   /**
    * Flatten all task paths of a workflow.
    */
-  public getTasksPaths(workflowName) : string[]
+  public getTasksPaths(workflowTasks : Task[]) : string[]
   {
     function getPaths(tasks: Task[], pathPrefix = '#') {
       let paths = [];
@@ -363,14 +360,13 @@ export class Controller {
       return paths;
     }
 
-    let tasks = this.workflows[workflowName].tasks;
-    return getPaths(tasks);
+    return getPaths(workflowTasks);
   }
 
   /**
    * Describe a workflow for a client (ie list tasks etc).
    */
-  public describeWorkflow(workflowName : string) : {tasks: WorkflowTasks;}
+  public describeWorkflow(workflowTasks : Task[]) : {tasks: WorkflowTasks;}
   {
     function describeTasks(tasks: Task[], pathPrefix = '#') : WorkflowTasks
     {
@@ -383,9 +379,8 @@ export class Controller {
       })
     }
 
-    let tasks = this.workflows[workflowName].tasks;
     return {
-      tasks: describeTasks(tasks)
+      tasks: describeTasks(workflowTasks)
     };
   }
 }
