@@ -9,8 +9,7 @@
 		"./dist"
 	],
 	"files": [
-		"./src/index.ts",
-    "./src/types.d.ts"
+		"./src/index.ts"
 	]
 }
 
