@@ -4,7 +4,7 @@
   "license": "GPL-3",
   "description": "Scheduler asynchronous of tasks workflows, that allow step by step execution .",
   "scripts": {
-    "build-backend": "cd backend && tsc"
+    "postinstall": "tsc"
   },
   "devDependencies": {
     "@types/node": "^8.0.7"
