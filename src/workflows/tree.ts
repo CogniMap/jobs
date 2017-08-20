@@ -1,8 +1,9 @@
 const Promise = require('bluebird');
 
 import { Redis } from '../redis';
+import { BaseWorkflow } from './workflow';
 import {
-  WorkflowTreeTasks, Workflow,
+  WorkflowTreeTasks,
   BaseTask,
   ExecutionErrorType, Factory,
 } from '../index.d';
@@ -26,13 +27,13 @@ class TreeTask extends BaseTask
  *
  * Paths are json-paths in the tree. The root level is '#'
  */
-export class TreeWorkflow implements Workflow
+export class TreeWorkflow extends BaseWorkflow
 {
-  private redis : Redis;
   private tasks : TreeTask[];
 
-  public constructor(redis) {
-    this.redis = redis;
+  public constructor(tasks) {
+    super();
+    this.tasks = tasks;
   }
 
   public getTask(path : string, baseContext)

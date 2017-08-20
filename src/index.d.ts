@@ -67,6 +67,7 @@ interface Factory {
 
 export interface Workflow
 {
+  redis: any;
   id : string;
 
   getTask(path: string, baseContext): Promise<{

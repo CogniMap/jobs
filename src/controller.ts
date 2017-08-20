@@ -64,6 +64,7 @@ export class Controller implements ControllerInterface
     } else {
       let workflow = this.generators[generator](data);
       workflow.id = workflowId;
+      workflow.redis = this.redis;
       return workflow;
     }
   }
