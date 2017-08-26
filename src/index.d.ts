@@ -1,8 +1,10 @@
-declare function createWorkflowInstance(workflowGenerator: string, workflowData: any, baseContext ?: any, execute ?: boolean) : Promise<string>;
-declare function updateWorkflow(workflowId : string, workflowUpdater : any) : Promise<{}>;
-declare function executeAllTasks(tasks : Task[], workflowId : string, startPath ?: string, callerSocket ?: any);
-declare function setupWebsockets(server : any);
-declare function registerWorkflowGenerator(name : string, generator : WorkflowGenerator);
+declare class Jobs {
+  public createWorkflowInstance(workflowGenerator: string, workflowData: any, baseContext ?: any, execute ?: boolean) : Promise<string>;
+  public updateWorkflow(workflowId : string, workflowUpdater : any) : Promise<{}>;
+  public executeAllTasks(tasks : Task[], workflowId : string, startPath ?: string, callerSocket ?: any);
+  public setupWebsockets(server : any);
+  public registerWorkflowGenerator(name : string, generator : WorkflowGenerator);
+}
 
 type TaskStatus = "inactive" | "queued" | "ok" | "failed";
 type WorkflowStatus = "working" | "done";
