@@ -4,10 +4,10 @@ import { Redis } from '../redis';
 import { BaseWorkflow } from './workflow';
 import {
   WorkflowTreeTasks,
-  Tasks, BaseTask,
+  Tasks,
   ControllerInterface, Factory,
 } from '../index.d';
-import { ExecutionErrorType } from '../common';
+import { BaseTask, ExecutionErrorType } from '../common';
 import { promisesFor } from '../promises';
 import { update } from '../immutability';
 

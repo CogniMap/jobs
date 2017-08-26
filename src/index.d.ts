@@ -68,14 +68,6 @@ export interface Task {
   execute(arg, factory : Factory) : Promise<any>;
 }
 
-export abstract class BaseTask implements Task
-{
-  public name;
-  public description;
-  public contextVar;
-  public execute(arg, factory);
-}
-
 interface Factory {
   controller: ControllerInterface;
   context : any;
