@@ -5,8 +5,9 @@ import { BaseWorkflow } from './workflow';
 import {
   WorkflowTreeTasks,
   Tasks, BaseTask,
-  ControllerInterface, ExecutionErrorType, Factory,
+  ControllerInterface, Factory,
 } from '../index.d';
+import { ExecutionErrorType } from '../common';
 import { promisesFor } from '../promises';
 import { update } from '../immutability';
 
@@ -116,6 +117,7 @@ export class TreeWorkflow extends BaseWorkflow
       return tasks.map(task => {
         return {
           name: task.name,
+          description: task.description,
           path: pathPrefix + '.' + task.name,
           children: describeTasks(task.children, pathPrefix + '.' + task.name)
         };

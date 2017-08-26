@@ -1,8 +1,8 @@
-export function createWorkflowInstance(workflowGenerator: string, workflowData: any, baseContext ?: any, execute ?: boolean) : Promise<string>;
-export function updateWorkflow(workflowId : string, workflowUpdater : any) : Promise<{}>;
-//export function executeAllTasks(tasks : Task[], workflowId : string, startPath ?: string, callerSocket ?: any);
-export function setupWebsockets(server : any);
-export function registerWorkflowGenerator(name : string, generator : WorkflowGenerator);
+declare function createWorkflowInstance(workflowGenerator: string, workflowData: any, baseContext ?: any, execute ?: boolean) : Promise<string>;
+declare function updateWorkflow(workflowId : string, workflowUpdater : any) : Promise<{}>;
+declare function executeAllTasks(tasks : Task[], workflowId : string, startPath ?: string, callerSocket ?: any);
+declare function setupWebsockets(server : any);
+declare function registerWorkflowGenerator(name : string, generator : WorkflowGenerator);
 
 type TaskStatus = "inactive" | "queued" | "ok" | "failed";
 type WorkflowStatus = "working" | "done";
@@ -23,6 +23,7 @@ export namespace Workflows {
 export interface WorkflowTreeTasks {
     [i: number]: {
         name: string; // Task name;
+        description: string;
         path: string; // Full task path
         children?: WorkflowTreeTasks;
     };
@@ -39,7 +40,7 @@ export interface Statuses {
     };
 }
 
-export interface ControllerInterface
+declare interface ControllerInterface
 {
   executeOneTask(workflowId : string, taskPath : string, callerSocket ?: any);
   run(workflowId : string, path ?: string, baseContext ?: any, argument ?: any): Promise<any>;
@@ -48,6 +49,7 @@ export interface ControllerInterface
 
 export interface Task {
   name: string;
+  description ?: string;
 
   contextVar ?: string; // If set, the task result will be added to the future contexts.
 
@@ -69,6 +71,7 @@ export interface Task {
 export abstract class BaseTask implements Task
 {
   public name;
+  public description;
   public contextVar;
   public execute(arg, factory);
 }
@@ -107,13 +110,6 @@ export interface Workflow
    * Execute the whole workflow (until error)
    */
   execute(controller : ControllerInterface, callerSocket : any) : void;
-}
-
-declare namespace ExecutionErrorType {
-  export const CANNOT_FIND_TASK = 'CANNOT_FIND_TASK'; 
-  export const CANNOT_START_TASK = 'CANNOT_START_TASK';  // Could not start the excution of the task
-  export const SCHEDULER_ERROR = 'SCHEDULER_ERROR';    // Could not find what to do for that task configuration
-  export const EXECUTION_FAILED = 'EXECUTION_FAILED';  // The task execution failed
 }
 
 export interface TaskError {

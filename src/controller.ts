@@ -2,11 +2,11 @@ import {Jobs} from './jobs';
 import {
   Workflow, WorkflowGenerator, WorkflowHash,
   Task, TaskHash, TaskError,
-  ExecutionErrorType,
   Statuses, TaskStatus, WorkflowStatus,
   Factory, ControllerInterface
 } from './index.d';
 import { Redis } from './redis';
+import { ExecutionErrorType } from './common';
 const Promise = require('bluebird');
 
 import { update } from './immutability';

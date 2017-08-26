@@ -2,9 +2,9 @@ const kue = require('kue');
 const EventEmitter = require('events');
 
 import {
-  ExecutionErrorType,
   ControllerInterface
 } from './index.d';
+import {ExecutionErrorType} from './common';
 import {Redis} from './redis';
 import {reduce} from './objects';
 
