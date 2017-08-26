@@ -1,4 +1,11 @@
+interface RedisConfig {
+  host: string;
+  port ?: number;
+}
+
 declare class Jobs {
+  public constructor(redisConfig : RedisConfig);
+
   public createWorkflowInstance(workflowGenerator: string, workflowData: any, baseContext ?: any, execute ?: boolean) : Promise<string>;
   public updateWorkflow(workflowId : string, workflowUpdater : any) : Promise<{}>;
   public executeAllTasks(tasks : Task[], workflowId : string, startPath ?: string, callerSocket ?: any);
