@@ -9,7 +9,8 @@
 		"./dist"
 	],
 	"files": [
-		"./src/index.ts"
+		"./src/index.ts",
+		"./src/workflows/index.ts"
 	]
 }
 
