@@ -74,7 +74,7 @@ export interface Task {
    * Do not edit the context directly !
    * Use the udpateContext() function of the factory.
    */
-  execute(arg, factory : Factory) : Promise<any>;
+  execute ?: {(arg, factory : Factory) : Promise<any>;};
 }
 
 interface Factory {
