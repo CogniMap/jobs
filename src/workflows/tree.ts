@@ -11,16 +11,6 @@ import { BaseTask, ExecutionErrorType } from '../common';
 import { promisesFor } from '../promises';
 import { update } from '../immutability';
 
-class TreeTask extends BaseTask implements Tasks.TreeTask
-{
-    public task : {(arg : any, factory) : Promise<any>;};
-    public children : TreeTask[];
-
-    public execute(arg, factory : Factory)
-    {
-        return this.task(arg, factory);
-    }
-}
 
 /**
  * A tree of tasks.
@@ -30,7 +20,7 @@ class TreeTask extends BaseTask implements Tasks.TreeTask
  */
 export class TreeWorkflow extends BaseWorkflow
 {
-    private tasks : TreeTask[];
+    private tasks : Tasks.TreeTask[];
 
     public constructor(tasks)
     {
@@ -42,14 +32,14 @@ export class TreeWorkflow extends BaseWorkflow
     {
         let self = this;
 
-        function _getTask(tasks : TreeTask[], targetPath : string, currentContext = {}, prevResult = {},
+        function _getTask(tasks : Tasks.TreeTask[], targetPath : string, currentContext = {}, prevResult = {},
                           currentPath = '#', minExecutionTime : number = 0) : Promise<{
             context : {[varName : string] : any;};
-            task : TreeTask;
+            task : Tasks.TreeTask;
             prevResult : any,
         }>
         {
-            return promisesFor(tasks, (i, task : TreeTask, breakFor, continueFor) => {
+            return promisesFor(tasks, (i, task : Tasks.TreeTask, breakFor, continueFor) => {
                 let taskPath = currentPath + '.' + task.name;
                 if (taskPath == targetPath) {
                     return breakFor({
@@ -116,7 +106,7 @@ export class TreeWorkflow extends BaseWorkflow
 
     public describe() : {tasks : WorkflowTreeTasks;}
     {
-        function describeTasks(tasks : TreeTask[], pathPrefix = '#') : WorkflowTreeTasks
+        function describeTasks(tasks : Tasks.TreeTask[], pathPrefix = '#') : WorkflowTreeTasks
         {
             return tasks.map(task => {
                 return {
@@ -135,7 +125,7 @@ export class TreeWorkflow extends BaseWorkflow
 
     public getAllPaths() : string[]
     {
-        function getPaths(tasks : TreeTask[], pathPrefix = '#')
+        function getPaths(tasks : Tasks.TreeTask[], pathPrefix = '#')
         {
             let paths = [];
             for (let task of tasks) {
@@ -157,7 +147,7 @@ export class TreeWorkflow extends BaseWorkflow
         {
             try {
                 let nextPath = self.getNextTask(path);
-                controller.executeOneTask(this.id, path, callerSocket)
+                controller.executeOneTask(self.id, path, callerSocket)
                           .then((jobEvents : any) => {
                               jobEvents.on('complete', function (res) {
                                   executeNextTask(nextPath);
@@ -189,7 +179,7 @@ export class TreeWorkflow extends BaseWorkflow
          *  - Else, return the next task of the parent. If we are at the root level (ie parentPath == '#'),
          *  throw a "NoNextTask" exception.
          */
-        function aux(tasks : TreeTask[], targetPath, parentPath = '#')
+        function aux(tasks : Tasks.TreeTask[], targetPath, parentPath = '#')
         {
             for (let i = 0; i < tasks.length; i++) {
                 let task = tasks[i];
