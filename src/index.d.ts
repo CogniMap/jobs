@@ -124,7 +124,7 @@ export interface TaskError {
 }
 
 export interface WorkflowGenerator {
-  (data : any) : Workflow;
+  (data : any) : Workflow | Promise<Workflow>;
 }
 
 export interface WorkflowHash {
