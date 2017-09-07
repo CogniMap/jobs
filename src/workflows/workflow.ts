@@ -3,15 +3,18 @@ import { Redis } from '../redis';
 
 export abstract class BaseWorkflow implements Workflow
 {
-  public id : string;
-  public redis : Redis;
+    public id : string;
+    public redis : Redis;
 
-  public abstract getTask(path: string, baseContext): Promise<{
-      context: { [varName: string]: any; };
-      task: Task;
-      prevResult: any,
+    public abstract getTask(path : string, baseContext) : Promise<{
+        context : {[varName : string] : any;};
+        task : Task;
+        prevResult : any,
     }>;
-  public abstract getAllPaths() : string[];
-  public abstract describe() : {tasks: WorkflowTreeTasks;};
-  public abstract execute(controller : ControllerInterface, callerSocket) : void;
+
+    public abstract getAllPaths() : string[];
+
+    public abstract describe() : {tasks : WorkflowTreeTasks;};
+
+    public abstract execute(controller : ControllerInterface, callerSocket) : void;
 }

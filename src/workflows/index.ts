@@ -1,7 +1,7 @@
-import {TreeWorkflow} from './tree';
+import { TreeWorkflow } from './tree';
 
 module.exports = {
-  TreeWorkflow,
-}
+    TreeWorkflow,
+};
 
 
