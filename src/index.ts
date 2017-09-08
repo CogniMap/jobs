@@ -120,7 +120,7 @@ export class Jobs
                 socket.emit('setWorkflowStatus', workflowHash.status);
 
                 let paths = workflow.getAllPaths();
-                let statuses = this.redis.getTasksStatuses(paths, workflow.id)
+                let statuses = self.redis.getTasksStatuses(paths, workflow.id)
                                    .then(statuses => {
                                        socket.emit('setTasksStatuses', {
                                            id: workflow.id,
@@ -131,7 +131,7 @@ export class Jobs
 
             // Watch a workflow instance events
             socket.on('watchWorkflowInstance', function (workflowId) {
-                this.redis.getWorkflow(workflowId)
+                self.redis.getWorkflow(workflowId)
                     .then((workflowHash : WorkflowHash) => {
                         // Join the workflow room for progression udpates broadcast
                         socket.join(workflowId);
@@ -154,7 +154,7 @@ export class Jobs
 
             socket.on('executeTask', function (args) {
                 let {workflowId, taskPath} = args;
-                this.controller.executeOneTask(workflowId, taskPath, socket);
+                self.controller.executeOneTask(workflowId, taskPath, socket);
             });
         });
     }
