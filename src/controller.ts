@@ -129,7 +129,10 @@ export class Controller implements ControllerInterface
 
         if (this.io != null) {
             this.io.sockets.in(workflowId)
-                .emit('setWorkflowStatus', 'done' as WorkflowStatus);
+                .emit('setWorkflowStatus', {
+                    id: workflowId,
+                    status: 'done' as WorkflowStatus
+                });
         }
     }
 
@@ -219,16 +222,24 @@ export class Controller implements ControllerInterface
                                                                      // Create a new instance.
                                                                      return model.create(data);
                                                                  } else {
-                                                                     return model.findById(data.id)
-                                                                                 .then(instance => {
-                                                                                     return instance.update(data);
-                                                                                 });
+                                                                     if (data.save != null) {
+                                                                         // Data is already an instanc3
+                                                                         return data.save();
+                                                                     } else {
+                                                                         return model.findById(data.id)
+                                                                                     .then(instance => {
+                                                                                         return instance.update(data);
+                                                                                     });
+                                                                     }
                                                                  }
                                                              },
                                                          };
                                                          try {
                                                              return task.execute(argument, factory)
                                                                         .catch(err => {
+                                                                            if (err instanceof Error) {
+                                                                               err = err.message;
+                                                                            }
                                                                             return Promise.reject({
                                                                                 type: ExecutionErrorType.EXECUTION_FAILED,
                                                                                 payload: {

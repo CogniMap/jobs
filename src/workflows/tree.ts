@@ -145,22 +145,23 @@ export class TreeWorkflow extends BaseWorkflow
 
         function executeNextTask(path : string)
         {
-            try {
-                let nextPath = self.getNextTask(path);
-                controller.executeOneTask(self.id, path, callerSocket)
-                          .then((jobEvents : any) => {
-                              jobEvents.on('complete', function (res) {
+            controller.executeOneTask(self.id, path, callerSocket)
+                      .then((jobEvents : any) => {
+                          jobEvents.on('complete', function (res) {
+                              try {
+                                  let nextPath = self.getNextTask(path);
                                   executeNextTask(nextPath);
-                              });
+
+                              }
+                              catch (e) {
+                                  if (e === 'NoNextTask') {
+                                      controller.finishWorkflow(self.id);
+                                  } else {
+                                      throw e;
+                                  }
+                              }
                           });
-            }
-            catch (e) {
-                if (e === 'NoNextTask') {
-                    controller.finishWorkflow(self.id);
-                } else {
-                    throw e;
-                }
-            }
+                      });
         }
 
         executeNextTask('#.' + this.tasks[0].name);
