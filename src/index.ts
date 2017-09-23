@@ -1,3 +1,5 @@
+import { Packets } from './network';
+
 const socketio = require('socket.io');
 const uniqid = require('uniqid');
 
@@ -10,6 +12,7 @@ import {
 } from './index.d';
 import { Redis } from './redis';
 import { update } from './immutability';
+import { stat } from 'fs';
 
 export const Workflows = require('./workflows');
 
@@ -112,20 +115,17 @@ export class Jobs
         this.controller.registerSockets(this.io);
 
         this.io.on('connection', function (socket) {
-            socket.emit('hello', {});
+            Packets.hello(socket);
 
             // Get and send the status of all tasks of the given workflow
             function sendWorkflowStatus(workflowHash : WorkflowHash, workflow : Workflow)
             {
-                socket.emit('setWorkflowStatus', workflowHash.status);
+                Packets.setWorkflowStatus(socket, workflow.id, workflowHash.status);
 
                 let paths = workflow.getAllPaths();
                 let statuses = self.redis.getTasksStatuses(paths, workflow.id)
                                    .then(statuses => {
-                                       socket.emit('setTasksStatuses', {
-                                           id: workflow.id,
-                                           statuses,
-                                       });
+                                       Packets.setTasksStatuses(socket, workflow.id, statuses);
                                    });
             }
 
@@ -140,11 +140,8 @@ export class Jobs
                         self.controller.generateWorkflow(workflowHash.generator, workflowHash.generatorData, workflowId)
                             .then(workflow => {
 
-                                let descritption = workflow.describe();
-                                socket.emit('workflowDescription', {
-                                    id: workflowId,
-                                    tasks: descritption.tasks,
-                                });
+                                let description = workflow.describe();
+                                Packets.workflowDescription(socket, workflowId, description.tasks);
 
                                 // Get initial status
                                 sendWorkflowStatus(workflowHash, workflow);

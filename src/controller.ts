@@ -11,6 +11,7 @@ import { ExecutionErrorType } from './common';
 const Promise = require('bluebird');
 
 import { update } from './immutability';
+import { Packets } from './network';
 
 /**
  * Manage workflow tasks.
@@ -103,7 +104,7 @@ export class Controller implements ControllerInterface
                                   })
                                   .on('error', function (err) {
                                       if (callerSocket != null) {
-                                          callerSocket.emit('executionError', err);
+                                          Packets.Errors.executionError(callerSocket, err);
                                       }
                                   });
                    });
@@ -115,11 +116,7 @@ export class Controller implements ControllerInterface
     private sendTasksStatuses(workflowId : string, statuses : Statuses)
     {
         if (this.io != null) {
-            this.io.sockets.in(workflowId)
-                .emit('setTasksStatuses', {
-                    id: workflowId,
-                    statuses,
-                });
+            Packets.setTasksStatuses(this.io.sockets.in(workflowId), workflowId, statuses);
         }
     }
 
@@ -128,11 +125,7 @@ export class Controller implements ControllerInterface
         this.redis.setWorkflowStatus(workflowId, 'done' as WorkflowStatus);
 
         if (this.io != null) {
-            this.io.sockets.in(workflowId)
-                .emit('setWorkflowStatus', {
-                    id: workflowId,
-                    status: 'done' as WorkflowStatus
-                });
+            Packets.setWorkflowStatus(this.io.sockets.in(workflowId), workflowId, 'done');
         }
     }
 
