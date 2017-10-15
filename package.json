@@ -7,7 +7,9 @@
     "postinstall": "tsc"
   },
   "devDependencies": {
-    "@types/node": "^8.0.7"
+    "@types/node": "^8.0.7",
+    "express": "^4.16.2",
+    "express-handlebars": "^3.0.0"
   },
   "dependencies": {
     "bluebird": "^3.5.0",

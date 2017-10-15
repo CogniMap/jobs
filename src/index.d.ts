@@ -27,7 +27,6 @@ export namespace Tasks
 {
     export interface TreeTask extends Task
     {
-        task : {(arg : any, factory : Factory) : Promise<any>};
         children : TreeTask[];
     }
 }
@@ -57,6 +56,7 @@ export interface Statuses
         body : any;
         context : any;
         argument : any;
+        contextUpdaters : any;
 
         executionTime ? : number;
     };

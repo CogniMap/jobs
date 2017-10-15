@@ -5,6 +5,15 @@ import { WorkflowStatus } from './index.d';
  */
 export namespace Packets
 {
+    export function catchError(socket, promise)
+    {
+        promise.catch(err => {
+            socket.emit('appError', {
+                error: err
+            });
+        });
+    }
+
     export function hello(socket)
     {
         socket.emit('hello', {});

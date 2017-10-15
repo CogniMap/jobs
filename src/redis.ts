@@ -7,6 +7,7 @@ import {
     WorkflowHash, TaskHash,
     Statuses, TaskStatus, WorkflowStatus,
 } from './index.d';
+import { update } from './immutability';
 
 /**
  * Interface to the redis client.
@@ -148,6 +149,16 @@ export class Redis
     {
         return this.redis.hmsetAsync(this.getTaskHash(workflowId, taskPath), this.redify(task))
                    .then(() => task);
+    }
+
+    public updateTask(workflowId : string, taskPath : string, updater) : Promise<TaskHash>
+    {
+        let self = this;
+        return this.getTask(workflowId, taskPath)
+                   .then(taskHash => {
+                       let newTaskHash = update(taskHash, updater);
+                       return self.setTask(workflowId, taskPath, newTaskHash);
+                   });
     }
 
     /**

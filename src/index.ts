@@ -12,9 +12,6 @@ import {
 } from './index.d';
 import { Redis } from './redis';
 import { update } from './immutability';
-import { stat } from 'fs';
-
-export const Workflows = require('./workflows');
 
 export class Jobs
 {
@@ -121,37 +118,66 @@ export class Jobs
             function sendWorkflowStatus(workflowHash : WorkflowHash, workflow : Workflow)
             {
                 Packets.setWorkflowStatus(socket, workflow.id, workflowHash.status);
+                sendTasksStatuses(socket, workflow.id);
+            }
 
-                let paths = workflow.getAllPaths();
-                let statuses = self.redis.getTasksStatuses(paths, workflow.id)
+            function getWorkflow(workflowId, interCallback = () => null)
+            {
+                return self.redis.getWorkflow(workflowId)
+                           .then((workflowHash : WorkflowHash) => {
+                               interCallback();
+                               return self.controller.generateWorkflow(workflowHash.generator,
+                                   workflowHash.generatorData, workflowId)
+                                          .then(workflow => {
+                                              return {workflow, workflowHash};
+                                          });
+                           });
+            }
+
+            function sendTasksStatuses(socket, workflowId)
+            {
+                getWorkflow(workflowId)
+                    .then(res => {
+                        let {workflow, workflowHash} = res;
+                        let paths = workflow.getAllPaths();
+                        return self.redis.getTasksStatuses(paths, workflow.id)
                                    .then(statuses => {
                                        Packets.setTasksStatuses(socket, workflow.id, statuses);
                                    });
+                    });
             }
 
             // Watch a workflow instance events
             socket.on('watchWorkflowInstance', function (workflowId) {
-                self.redis.getWorkflow(workflowId)
-                    .then((workflowHash : WorkflowHash) => {
-                        // Join the workflow room for progression udpates broadcast
+                Packets.catchError(socket, getWorkflow(workflowId, () => {
                         socket.join(workflowId);
+                    })
+                        .then(res => {
+                            let {workflow, workflowHash} = res;
 
-                        // Send the workflow description
-                        self.controller.generateWorkflow(workflowHash.generator, workflowHash.generatorData, workflowId)
-                            .then(workflow => {
+                            let description = workflow.describe();
+                            Packets.workflowDescription(socket, workflowId, description.tasks);
 
-                                let description = workflow.describe();
-                                Packets.workflowDescription(socket, workflowId, description.tasks);
-
-                                // Get initial status
-                                sendWorkflowStatus(workflowHash, workflow);
-                            });
-                    });
+                            // Get initial status
+                            sendWorkflowStatus(workflowHash, workflow);
+                        }),
+                );
             });
 
             socket.on('executeTask', function (args) {
                 let {workflowId, taskPath} = args;
-                self.controller.executeOneTask(workflowId, taskPath, socket);
+                Packets.catchError(socket, self.controller.executeOneTask(workflowId, taskPath, socket));
+            });
+
+            socket.on('setContextUpdaters', function (args) {
+                let {workflowId, taskPath, updaters} = args;
+                Packets.catchError(socket, self.redis.updateTask(workflowId, taskPath, {
+                        contextUpdaters: {$set: updaters},
+                    })
+                                               .then(() => {
+                                                   sendTasksStatuses(socket, workflowId);
+                                               }),
+                );
             });
         });
     }

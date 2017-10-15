@@ -99,7 +99,7 @@ export class Controller implements ControllerInterface
                                           [taskPath]: {
                                               status: 'failed',
                                               ... err.payload
-                                          },
+                                          } as any,
                                       });
                                   })
                                   .on('error', function (err) {
@@ -269,7 +269,6 @@ export class Controller implements ControllerInterface
                                                                         });
                                                          }
                                                          catch (err) {
-                                                             console.log(err);
                                                              // Direct exception in the task callback
                                                              return Promise.reject({
                                                                  type: ExecutionErrorType.EXECUTION_FAILED,
