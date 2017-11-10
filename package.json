@@ -4,12 +4,13 @@
   "license": "GPL-3",
   "description": "Scheduler asynchronous of tasks workflows, that allow step by step execution .",
   "scripts": {
-    "postinstall": "tsc --version && tsc"
+    "postinstall": "pwd && tsc --version && tsc"
   },
   "devDependencies": {
     "@types/node": "^8.0.7",
     "express": "^4.16.2",
-    "express-handlebars": "^3.0.0"
+    "express-handlebars": "^3.0.0",
+    "typescript": "^2.6.1"
   },
   "dependencies": {
     "bluebird": "^3.5.0",
