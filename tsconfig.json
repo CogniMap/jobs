@@ -8,9 +8,8 @@
 	"exclude": [
 		"./dist"
 	],
-	"files": [
-		"./src/index.ts",
-		"./src/workflows/index.ts"
-	]
+  "include": [
+    "src/**/*"
+  ]
 }
 
