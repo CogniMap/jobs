@@ -13,6 +13,8 @@ import {
 import { Redis } from './redis';
 import { update } from './immutability';
 
+export const Workflows = require('./workflows');
+
 export class Jobs
 {
     private redisConfig : {
