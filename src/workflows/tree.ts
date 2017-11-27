@@ -44,7 +44,7 @@ export class TreeWorkflow extends BaseWorkflow
                 let taskPath = currentPath + '.' + task.name;
                 if (taskPath == targetPath) {
                     return self.redis.getTask(self.id, taskPath).then(taskHash => {
-                        let resultContext = getResultContext(taskHash);
+                        let resultContext = getResultContext(taskHash, currentContext);
                         return breakFor({
                             task, prevResult,
                             context: currentContext,
