@@ -97,6 +97,7 @@ interface Factory
 {
     controller : ControllerInterface;
     context : any;
+    previousContext: any;
 
     updateContext(updater : any) : void;
 
@@ -111,6 +112,7 @@ export interface Workflow
 
     getTask(path : string, baseContext) : Promise<{
         context : {[varName : string] : any;};
+        resultContext : {[varName : string] : any;};
         task : Task;
         prevResult : any,
     }>;

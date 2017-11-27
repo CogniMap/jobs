@@ -12,6 +12,7 @@ const Promise = require('bluebird');
 
 import { update } from './immutability';
 import { Packets } from './network';
+import { getResultContext } from './workflows/context';
 
 /**
  * Manage workflow tasks.
@@ -155,7 +156,7 @@ export class Controller implements ControllerInterface
                                   .then(workflow => {
                                       return workflow.getTask(path, baseContext)
                                                      .then(res => {
-                                                         let {task, context, prevResult} = res;
+                                                         let {task, context, prevResult, resultContext} = res;
                                                          if (argument == null) {
                                                              argument = prevResult;
                                                          }
@@ -191,6 +192,11 @@ export class Controller implements ControllerInterface
                                                               * Read only context.
                                                               */
                                                              context,
+
+                                                             /**
+                                                              * Read only previous context (if any)
+                                                              */
+                                                             previousContext: resultContext,
 
                                                              /**
                                                               * Pure functional : no side effects. The updater is also serialized in the redis database.

@@ -8,6 +8,7 @@ export abstract class BaseWorkflow implements Workflow
 
     public abstract getTask(path : string, baseContext) : Promise<{
         context : {[varName : string] : any;};
+        resultContext : {[varName : string] : any;};
         task : Task;
         prevResult : any,
     }>;

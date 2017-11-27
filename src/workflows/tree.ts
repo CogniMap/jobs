@@ -1,15 +1,15 @@
+import { getResultContext } from './context';
+
 const Promise = require('bluebird');
 
-import { Redis } from '../redis';
 import { BaseWorkflow } from './workflow';
 import {
     WorkflowTreeTasks,
     Tasks,
     ControllerInterface, Factory,
 } from '../index.d';
-import { BaseTask, ExecutionErrorType } from '../common';
+import { ExecutionErrorType } from '../common';
 import { promisesFor } from '../promises';
-import { update } from '../immutability';
 
 
 /**
@@ -35,6 +35,7 @@ export class TreeWorkflow extends BaseWorkflow
         function _getTask(tasks : Tasks.TreeTask[], targetPath : string, currentContext = {}, prevResult = {},
                           currentPath = '#', minExecutionTime : number = 0) : Promise<{
             context : {[varName : string] : any;};
+            resultContext: {[varName: string]: any;};
             task : Tasks.TreeTask;
             prevResult : any,
         }>
@@ -42,9 +43,13 @@ export class TreeWorkflow extends BaseWorkflow
             return promisesFor(tasks, (i, task : Tasks.TreeTask, breakFor, continueFor) => {
                 let taskPath = currentPath + '.' + task.name;
                 if (taskPath == targetPath) {
-                    return breakFor({
-                        task, prevResult,
-                        context: currentContext,
+                    return self.redis.getTask(self.id, taskPath).then(taskHash => {
+                        let resultContext = getResultContext(taskHash);
+                        return breakFor({
+                            task, prevResult,
+                            context: currentContext,
+                            resultContext
+                        });
                     });
                 } else if ((targetPath as any).startsWith(taskPath)) {
                     if (task.children.length == 0) {
@@ -94,9 +99,7 @@ export class TreeWorkflow extends BaseWorkflow
                                if (task.contextVar != null) {
                                    currentContext[task.contextVar] = prevResult;
                                }
-                               for (let updater of taskHash.contextUpdaters) {
-                                   currentContext = update(currentContext, updater);
-                               }
+                               currentContext = getResultContext(taskHash, currentContext);
                            });
             });
         }
