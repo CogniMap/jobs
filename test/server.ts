@@ -1,16 +1,21 @@
 const Express = require('express');
 const http = require('http');
-var exphbs  = require('express-handlebars');
+const exphbs  = require('express-handlebars');
 
 import { Jobs } from '../src/index';
 import { TreeWorkflow } from '../src/workflows/tree';
 import { Factory } from '../src/index.d';
 
 const app = Express();
-var server = http.Server(app);
-var jobs = new Jobs({
+let server = http.Server(app);
+let jobs = new Jobs({
     host: '0.0.0.0',
-    port: '6380',
+    port: 6380,
+}, {
+    host: '0.0.0.0',
+    port: 3305,
+    username: 'admin',
+    password: 'password',
 });
 
 if (process.argv.length != 3) {
@@ -18,10 +23,11 @@ if (process.argv.length != 3) {
     process.exit();
 }
 const publicJsPath = process.argv[2];
+console.log('Using public js : ' + publicJsPath);
 app.use('/js', Express.static(publicJsPath));
 
 app.engine('handlebars', exphbs({
-    layoutsDir: '../../views/layouts',
+    layoutsDir: '../views/layouts',
     defaultLayout: 'main',
 }));
 app.set('view engine', 'handlebars');
@@ -79,7 +85,7 @@ app.get('/', function (req, res) {
     };
     jobs.createWorkflowInstance('test', testData)
         .then(workflowId => {
-            res.render('../../../views/home', {
+            res.render('../../views/home', {
                 workflowId,
             });
         });

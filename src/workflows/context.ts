@@ -4,8 +4,12 @@ import { TaskHash } from '../index.d';
 
 export function getResultContext(task : TaskHash, context = {})
 {
-                               for (let updater of task.contextUpdaters) {
+  try {
+                               for (let updater of task.contextUpdaters || []) {
                                    context = update(context, updater);
                                }
+  } catch (e) {
+    console.log(e);
+  }
                                return context;
 }

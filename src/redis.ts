@@ -21,6 +21,9 @@ export class Redis
 
     public constructor(redisConfig)
     {
+        redisConfig = Object.assign({}, {
+            port: 6379,
+        }, redisConfig);
         this.redis = RedisClass.createClient(redisConfig);
         this.redis.on('error', function (err) {
             console.log('[REDIS ERROR] ' + err);

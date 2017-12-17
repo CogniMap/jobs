@@ -2,7 +2,7 @@ const kue = require('kue');
 const EventEmitter = require('events');
 
 import {
-    ControllerInterface,
+    RedisConfig, ControllerInterface,
 } from './index.d';
 import { ExecutionErrorType } from './common';
 import { Redis } from './redis';
@@ -25,12 +25,6 @@ interface RunTaskJob
     }
 
     progress(frame, total, data);
-}
-
-interface RedisConfig
-{
-    port : number;
-    host : string;
 }
 
 class JobEvents extends EventEmitter

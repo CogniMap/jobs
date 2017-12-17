@@ -1,12 +1,13 @@
-import { Packets } from './network';
-
 const socketio = require('socket.io');
 const uniqid = require('uniqid');
 
 import { Controller } from './controller';
 import { Jobs as AsyncJobs } from './jobs';
+import { Packets } from './network';
+import { Database } from './database';
 import {
-    WorkflowGenerator, WorkflowHash, Workflow, WorkflowStatus,
+    RedisConfig, MysqlConfig,
+    WorkflowInstance, WorkflowGenerator, WorkflowHash, Workflow, WorkflowStatus,
     TaskHash, Task, TaskError,
     Statuses, TaskStatus,
 } from './index.d';
@@ -22,17 +23,16 @@ export class Jobs
         port : number,
     };
     private redis;
+    private database;
     private jobs : AsyncJobs;
     private controller : Controller;
     private io;
 
 
-    public constructor(redisConfig)
+    public constructor(redisConfig : RedisConfig, mysqlConfig : MysqlConfig)
     {
-        redisConfig = Object.assign({}, {
-            port: 6379,
-        }, redisConfig);
         this.redis = new Redis(redisConfig);
+        this.database = new Database(mysqlConfig);
         this.jobs = new AsyncJobs(redisConfig, this.redis);
         this.controller = new Controller(this.redis, this.jobs);
         this.io = null;
@@ -50,22 +50,25 @@ export class Jobs
                                   execute : boolean = false) : Promise<string>
     {
         let workflowId = uniqid();
+        return this.database.Workflows.create({
+            id: workflowId,
+        })
+                   .then(workflowInstance => {
+                       // Initialize the workflow instance in redis create tasks hashes
+                       return this.controller.generateWorkflow(workflowGenerator, workflowData, workflowId);
+                   })
+                   .then(workflow => {
+                       let paths = workflow.getAllPaths();
 
-        // Initialize the workflow instance in redis create tasks hashes
-        let workflowPromise = this.controller.generateWorkflow(workflowGenerator, workflowData, workflowId);
+                       return this.redis.initWorkflow(workflowGenerator, workflowData, paths, workflowId, baseContext)
+                                  .then(() => {
+                                      if (execute) {
+                                          workflow.execute(this.controller, null);
+                                      }
 
-        return workflowPromise.then(workflow => {
-            let paths = workflow.getAllPaths();
-
-            return this.redis.initWorkflow(workflowGenerator, workflowData, paths, workflowId, baseContext)
-                       .then(() => {
-                           if (execute) {
-                               workflow.execute(this.controller, null);
-                           }
-
-                           return workflowId;
-                       });
-        });
+                                      return workflowId;
+                                  });
+                   });
     }
 
     /**
@@ -190,5 +193,13 @@ export class Jobs
     public registerWorkflowGenerator(name : string, generator : WorkflowGenerator)
     {
         return this.controller.registerWorkflowGenerator(name, generator);
+    }
+
+    /**
+     * Get all workflow instances.
+     */
+    public getAllWorfklows() : Promise<WorkflowInstance[]>
+    {
+        return this.database.Workflows.findAll();
     }
 }

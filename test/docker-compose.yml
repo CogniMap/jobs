@@ -9,5 +9,29 @@ services:
         ports:
             - 6380:6379
 
+    db:
+        container_name: mysql_test_jobs
+        image: quanticpotato/mysql
+        command: --sql-mode=
+        volumes:
+            - ./mysql:/var/lib/mysql
+        environment:
+            - MYSQL_DATABASE=jobs
+            - MYSQL_ROOT_PASSWORD=password
+            - MYSQL_USER=admin
+            - MYSQL_PASSWORD=password
+        networks:
+            - backend
+        ports:
+            - 3305:3306
+
+    phpmyadmin:
+        container_name: phpmyadmin_test_jobs
+        image: phpmyadmin/phpmyadmin
+        networks:
+            - backend
+        ports:
+            - 8880:80
+
 networks:
     backend:

@@ -1,12 +1,20 @@
-interface RedisConfig
+export interface RedisConfig
 {
     host : string;
-    port ? : number;
+    port ?: number;
+}
+
+export interface MysqlConfig
+{
+    host: string;
+    port ?: number;
+    username: string;
+    password: string;
 }
 
 declare class Jobs
 {
-    public constructor(redisConfig : RedisConfig);
+    public constructor(redisConfig : RedisConfig, mysqlConfig : MysqlConfig);
 
     public createWorkflowInstance(workflowGenerator : string, workflowData : any, baseContext ? : any,
                                   execute ? : boolean) : Promise<string>;
@@ -18,6 +26,17 @@ declare class Jobs
     public setupWebsockets(server : any);
 
     public registerWorkflowGenerator(name : string, generator : WorkflowGenerator);
+
+    public getAllWorfklows() : Promise<WorkflowInstance[]>;
+}
+
+/**
+ * An instance in the sequelize database.
+ */
+export interface WorkflowInstance
+{
+    id : string;
+    name: string;
 }
 
 type TaskStatus = 'inactive' | 'queued' | 'ok' | 'failed';
