@@ -1,23 +1,26 @@
 export interface RedisConfig
 {
     host : string;
-    port ?: number;
+    port ? : number;
 }
 
 export interface MysqlConfig
 {
-    host: string;
-    port ?: number;
-    username: string;
-    password: string;
+    host : string;
+    port ? : number;
+    username : string;
+    password : string;
 }
 
 declare class Jobs
 {
     public constructor(redisConfig : RedisConfig, mysqlConfig : MysqlConfig);
 
-    public createWorkflowInstance(workflowGenerator : string, workflowData : any, baseContext ? : any,
-                                  execute ? : boolean) : Promise<string>;
+    public createWorkflowInstance(workflowGenerator : string, workflowData : any, options ? : {
+        baseContext ? : any,
+        execute ? : boolean,
+        name ? : string
+    }) : Promise<string>;
 
     public updateWorkflow(workflowId : string, workflowUpdater : any) : Promise<{}>;
 
@@ -28,6 +31,8 @@ declare class Jobs
     public registerWorkflowGenerator(name : string, generator : WorkflowGenerator);
 
     public getAllWorkflows() : Promise<WorkflowInstance[]>;
+
+    public executeOneTask(workflowId : string, taskPath : string, callerSocket ? : any, argument ? : any)
 }
 
 /**
@@ -36,7 +41,7 @@ declare class Jobs
 export interface WorkflowInstance
 {
     id : string;
-    name: string;
+    name : string;
 }
 
 type TaskStatus = 'inactive' | 'queued' | 'ok' | 'failed';
@@ -83,11 +88,11 @@ export interface Statuses
 
 declare interface ControllerInterface
 {
-    executeOneTask(workflowId : string, taskPath : string, callerSocket ? : any);
-
     run(workflowId : string, path ? : string, baseContext ? : any, argument ? : any) : Promise<any>;
 
     finishWorkflow(workflowId : string);
+
+    executeOneTask(workflowId : string, taskPath : string, callerSocket ? : any, argument ? : any)
 }
 
 export interface Task
@@ -116,7 +121,7 @@ interface Factory
 {
     controller : ControllerInterface;
     context : any;
-    previousContext: any;
+    previousContext : any;
 
     updateContext(updater : any) : void;
 

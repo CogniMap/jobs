@@ -77,16 +77,37 @@ export class Controller implements ControllerInterface
         }
     }
 
+    public finishWorkflow(workflowId : string)
+    {
+        this.redis.setWorkflowStatus(workflowId, 'done' as WorkflowStatus);
+
+        if (this.io != null) {
+            Packets.setWorkflowStatus(this.io.sockets.in(workflowId), workflowId, 'done');
+        }
+    }
+
     /**
-     * Mark the task as queued, and then execute eit and register listeners to broadcast results
-     * through the websockets.
+     * If a websocket server is registered, dispatch statuses update.
      */
-    public executeOneTask(workflowId : string, taskPath : string, callerSocket = null)
+    private sendTasksStatuses(workflowId : string, statuses : Statuses)
+    {
+        if (this.io != null) {
+            Packets.setTasksStatuses(this.io.sockets.in(workflowId), workflowId, statuses);
+        }
+    }
+
+    /**
+     * Queue the task.
+     * Register listeners to broadcast results through the websockets.
+     *
+     * @param callerSocket If given, send errors to this socket if any
+     */
+    public executeOneTask(workflowId : string, taskPath : string, callerSocket = null, argument = null)
     {
         let self = this;
         return this.redis.setTaskStatus(workflowId, taskPath, 'queued')
                    .then(() => {
-                       return this.jobs.runTask(workflowId, taskPath)
+                       return this.jobs.runTask(workflowId, taskPath, argument)
                                   .on('complete', function (taskHash : TaskHash) {
                                       self.sendTasksStatuses(workflowId, {
                                           [taskPath]: {
@@ -112,28 +133,11 @@ export class Controller implements ControllerInterface
     }
 
     /**
-     * If a websocket server is registered, dispatch statuses update.
-     */
-    private sendTasksStatuses(workflowId : string, statuses : Statuses)
-    {
-        if (this.io != null) {
-            Packets.setTasksStatuses(this.io.sockets.in(workflowId), workflowId, statuses);
-        }
-    }
-
-    public finishWorkflow(workflowId : string)
-    {
-        this.redis.setWorkflowStatus(workflowId, 'done' as WorkflowStatus);
-
-        if (this.io != null) {
-            Packets.setWorkflowStatus(this.io.sockets.in(workflowId), workflowId, 'done');
-        }
-    }
-
-    /**
      * Run a SINGLE task of a workflow instance.
      *
      * Return a promise resolving to the result of this task.
+     *
+     * @param argument If null, the previous result (ie of the previous task) is used.
      */
     public run(workflowId : string, path = '#', baseContext = {}, argument = null) : Promise<any>
     {

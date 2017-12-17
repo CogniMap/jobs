@@ -83,7 +83,7 @@ app.get('/', function (req, res) {
     const testData = {
         payload: 'test',
     };
-    jobs.createWorkflowInstance('test', testData)
+    jobs.createWorkflowInstance('test', testData, {name: 'test_workflow'})
         .then(workflowId => {
             res.render('../../views/home', {
                 workflowId,

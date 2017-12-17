@@ -47,10 +47,10 @@ export class Jobs
      * @param execute If true, execute all tasks (until error) of the workflow.
      */
     public createWorkflowInstance(workflowGenerator : string, workflowData : any, options : {
-        baseContext : any,
-        execute : boolean,
-        name : string
-    }) : Promise<string>
+        baseContext ?: any,
+        execute ?: boolean,
+        name ?: string
+    } = {}) : Promise<string>
     {
         let workflowId = uniqid();
         options = Object.assign({}, {
@@ -180,8 +180,8 @@ export class Jobs
             });
 
             socket.on('executeTask', function (args) {
-                let {workflowId, taskPath} = args;
-                Packets.catchError(socket, self.controller.executeOneTask(workflowId, taskPath, socket));
+                let {workflowId, taskPath, arg} = args;
+                Packets.catchError(socket, self.executeOneTask(workflowId, taskPath, socket));
             });
 
             socket.on('setContextUpdaters', function (args) {
@@ -193,8 +193,18 @@ export class Jobs
                                                    sendTasksStatuses(socket, workflowId);
                                                }),
                 );
-            });
+            })
         });
+    }
+
+    /**
+     * Proxy function to the controller.
+     *
+     * Cf controller.ts
+     */
+    public executeOneTask(workflowId : string, taskPath : string, callerSocket = null, argument = null)
+    {
+        return this.controller.executeOneTask(workflowId, taskPath, callerSocket, argument);
     }
 
     /**
