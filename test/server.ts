@@ -1,6 +1,7 @@
 const Express = require('express');
 const http = require('http');
-const exphbs  = require('express-handlebars');
+const exphbs = require('express-handlebars');
+const bodyParser = require('body-parser');
 
 import { Jobs } from '../src/index';
 import { TreeWorkflow } from '../src/workflows/tree';
@@ -38,6 +39,8 @@ jobs.registerWorkflowGenerator('test', (data) => {
             name: 'task1',
             description: 'Returns a Promise.resolve',
             execute: (arg, factory : Factory) => {
+                console.log('Initial argument : ');
+                console.log(arg);
                 return Promise.resolve('OK');
             },
             children: [],
@@ -46,7 +49,7 @@ jobs.registerWorkflowGenerator('test', (data) => {
             description: 'Update context',
             execute: (arg, factory : Factory) => {
                 factory.updateContext({
-                    test: {$set: "ok"}
+                    test: {$set: 'ok'},
                 });
                 return Promise.resolve('Context updated');
             },
@@ -61,19 +64,19 @@ jobs.registerWorkflowGenerator('test', (data) => {
         }, {
             name: 'task4',
             description: 'Returns a Promise.reject',
-            execute:  (arg, factory : Factory) => {
+            execute: (arg, factory : Factory) => {
                 return Promise.reject('Error');
             },
             children: [],
             condition: (context) => false,
         }, {
-             name: 'task5',
+            name: 'task5',
             description: 'Throws an Error',
-            execute:  (arg, factory : Factory) => {
-                 throw new Error('Error');
+            execute: (arg, factory : Factory) => {
+                throw new Error('Error');
             },
             children: [],
-        }
+        },
     ];
 
     return new TreeWorkflow(tasks);
@@ -87,6 +90,23 @@ app.get('/', function (req, res) {
         .then(workflowId => {
             res.render('../../views/home', {
                 workflowId,
+            });
+        });
+});
+
+app.post('/executeAllTasks', bodyParser.json(), function (req, res) {
+    let workflowId = req.body.workflowId;
+    let initialArg = {};
+    console.log('Execute all tasks');
+    jobs.executeAllTasks(workflowId, null, initialArg)
+        .then(workflowId => {
+            res.render('../../views/home', {
+                workflowId,
+            });
+        })
+        .catch(err => {
+             res.render('../../views/error', {
+                 error: JSON.stringify(err)
             });
         });
 });

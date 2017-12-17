@@ -17,5 +17,5 @@ export abstract class BaseWorkflow implements Workflow
 
     public abstract describe() : {tasks : WorkflowTreeTasks;};
 
-    public abstract execute(controller : ControllerInterface, callerSocket) : void;
+    public abstract execute(controller : ControllerInterface, callerSocket ?: any, argument ?: any) : void;
 }

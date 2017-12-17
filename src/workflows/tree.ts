@@ -142,13 +142,14 @@ export class TreeWorkflow extends BaseWorkflow
         return getPaths(this.tasks);
     }
 
-    public execute(controller : ControllerInterface, callerSocket = null) : void
+    public execute(controller : ControllerInterface, callerSocket = null, argument = null) : void
     {
         let self = this;
+        let startTask = '#.' + this.tasks[0].name;
 
-        function executeNextTask(path : string)
+        function executeNextTask(path : string, argument = null)
         {
-            controller.executeOneTask(self.id, path, callerSocket)
+            controller.executeOneTask(self.id, path, callerSocket, argument)
                       .then((jobEvents : any) => {
                           jobEvents.on('complete', function (res) {
                               try {
@@ -167,7 +168,7 @@ export class TreeWorkflow extends BaseWorkflow
                       });
         }
 
-        executeNextTask('#.' + this.tasks[0].name);
+        executeNextTask(startTask, argument);
     }
 
     /**

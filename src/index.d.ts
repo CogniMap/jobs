@@ -24,7 +24,7 @@ declare class Jobs
 
     public updateWorkflow(workflowId : string, workflowUpdater : any) : Promise<{}>;
 
-    public executeAllTasks(tasks : Task[], workflowId : string, startPath ? : string, callerSocket ? : any);
+    public executeAllTasks(tasks : Task[], workflowId : string, startPath ? : string, callerSocket ? : any, argument ?: any);
 
     public setupWebsockets(server : any);
 
@@ -154,7 +154,7 @@ export interface Workflow
     /**
      * Execute the whole workflow (until error)
      */
-    execute(controller : ControllerInterface, callerSocket : any) : void;
+    execute(controller : ControllerInterface, callerSocket ?: any, argument ?: any) : void;
 }
 
 export interface TaskError

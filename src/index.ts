@@ -47,17 +47,18 @@ export class Jobs
      * @param execute If true, execute all tasks (until error) of the workflow.
      */
     public createWorkflowInstance(workflowGenerator : string, workflowData : any, options : {
-        baseContext ?: any,
-        execute ?: boolean,
-        name ?: string
+        baseContext ? : any,
+        execute ? : boolean,
+        name ? : string
     } = {}) : Promise<string>
     {
+        let self = this;
         let workflowId = uniqid();
         options = Object.assign({}, {
             baseContext: {},
             execute: false,
             name: '',
-            generator: workflowGenerator
+            generator: workflowGenerator,
         }, options);
         return this.database.Workflows.create({
             id: workflowId,
@@ -70,16 +71,58 @@ export class Jobs
                    .then(workflow => {
                        let paths = workflow.getAllPaths();
 
-                       return this.redis.initWorkflow(workflowGenerator, workflowData, paths, workflowId, options.baseContext)
+                       return this.redis.initWorkflow(workflowGenerator, workflowData, paths, workflowId,
+                           options.baseContext)
                                   .then(() => {
                                       if (options.execute) {
-                                          workflow.execute(this.controller, null);
+                                          self._executeAllTasks(workflow, '#');
                                       }
 
                                       return workflowId;
                                   });
                    });
     }
+
+    /**
+     * Get a workflow instance from a workflow id (generate tasks)
+     *
+     * @param workflowId
+     * @param {() => any} interCallback
+     * @returns {Promise<T>}
+     */
+    private getWorkflow(workflowId, interCallback = () => null) : Promise<{
+        workflow : Workflow,
+        workflowHash : any
+    }>
+    {
+        let self = this;
+        return this.redis.getWorkflow(workflowId)
+                   .then((workflowHash : WorkflowHash) => {
+                       interCallback();
+                       return self.controller.generateWorkflow(workflowHash.generator,
+                           workflowHash.generatorData, workflowId)
+                                  .then(workflow => {
+                                      return {workflow, workflowHash};
+                                  });
+                   });
+    }
+
+
+    public executeAllTasks(workflowId : string, callerSocket = null, argument = null)
+    {
+        let self = this;
+        return this.getWorkflow(workflowId)
+                   .then(res => {
+                       let {workflow, workflowHash} = res;
+                       return self._executeAllTasks(workflow, callerSocket, argument);
+                   });
+    }
+
+    private _executeAllTasks(workflow : Workflow, callerSocket = null, argument = null)
+    {
+        return workflow.execute(this.controller, callerSocket, argument);
+    }
+
 
     /**
      * Update the parameters of a workflow (the generator name, argument etc)
@@ -127,74 +170,70 @@ export class Jobs
         this.controller.registerSockets(this.io);
 
         this.io.on('connection', function (socket) {
-            Packets.hello(socket);
+                Packets.hello(socket);
 
-            // Get and send the status of all tasks of the given workflow
-            function sendWorkflowStatus(workflowHash : WorkflowHash, workflow : Workflow)
-            {
-                Packets.setWorkflowStatus(socket, workflow.id, workflowHash.status);
-                sendTasksStatuses(socket, workflow.id);
-            }
+                // Get and send the status of all tasks of the given workflow
+                function sendWorkflowStatus(workflowHash : WorkflowHash, workflow : Workflow)
+                {
+                    Packets.setWorkflowStatus(socket, workflow.id, workflowHash.status);
+                    sendTasksStatuses(socket, workflow.id);
+                }
 
-            function getWorkflow(workflowId, interCallback = () => null)
-            {
-                return self.redis.getWorkflow(workflowId)
-                           .then((workflowHash : WorkflowHash) => {
-                               interCallback();
-                               return self.controller.generateWorkflow(workflowHash.generator,
-                                   workflowHash.generatorData, workflowId)
-                                          .then(workflow => {
-                                              return {workflow, workflowHash};
-                                          });
-                           });
-            }
-
-            function sendTasksStatuses(socket, workflowId)
-            {
-                getWorkflow(workflowId)
-                    .then(res => {
-                        let {workflow, workflowHash} = res;
-                        let paths = workflow.getAllPaths();
-                        return self.redis.getTasksStatuses(paths, workflow.id)
-                                   .then(statuses => {
-                                       Packets.setTasksStatuses(socket, workflow.id, statuses);
-                                   });
-                    });
-            }
-
-            // Watch a workflow instance events
-            socket.on('watchWorkflowInstance', function (workflowId) {
-                Packets.catchError(socket, getWorkflow(workflowId, () => {
-                        socket.join(workflowId);
-                    })
+                function sendTasksStatuses(socket, workflowId)
+                {
+                    self.getWorkflow(workflowId)
                         .then(res => {
                             let {workflow, workflowHash} = res;
+                            let paths = workflow.getAllPaths();
+                            return self.redis.getTasksStatuses(paths, workflow.id)
+                                       .then(statuses => {
+                                           Packets.setTasksStatuses(socket, workflow.id, statuses);
+                                       });
+                        });
+                }
 
-                            let description = workflow.describe();
-                            Packets.workflowDescription(socket, workflowId, description.tasks);
+                // Watch a workflow instance events
+                socket.on('watchWorkflowInstance', function (workflowId) {
+                    Packets.catchError(socket, self.getWorkflow(workflowId, () => {
+                            socket.join(workflowId);
+                        })
+                                                   .then(res => {
+                                                       let {workflow, workflowHash} = res;
 
-                            // Get initial status
-                            sendWorkflowStatus(workflowHash, workflow);
-                        }),
+                                                       let description = workflow.describe();
+                                                       Packets.workflowDescription(socket, workflowId, description.tasks);
+
+                                                       // Get initial status
+                                                       sendWorkflowStatus(workflowHash, workflow);
+                                                   }),
+                    );
+                });
+
+                socket.on('executeTask', function (args) {
+                    let {workflowId, taskPath, arg} = args;
+                    Packets.catchError(socket, self.executeOneTask(workflowId, taskPath, socket));
+                });
+
+                socket.on('executeAllTasks', function (args) {
+                    let {workflowId, taskPath, initialArg } = args;
+                    Packets.catchError(socket,
+                        self.executeAllTasks(workflowId, socket, initialArg),
+                    );
+                });
+
+                socket.on('setContextUpdaters', function (args) {
+                        let {workflowId, taskPath, updaters} = args;
+                        Packets.catchError(socket, self.redis.updateTask(workflowId, taskPath, {
+                                contextUpdaters: {$set: updaters},
+                            })
+                                                       .then(() => {
+                                                           sendTasksStatuses(socket, workflowId);
+                                                       }),
+                        );
+                    },
                 );
-            });
-
-            socket.on('executeTask', function (args) {
-                let {workflowId, taskPath, arg} = args;
-                Packets.catchError(socket, self.executeOneTask(workflowId, taskPath, socket));
-            });
-
-            socket.on('setContextUpdaters', function (args) {
-                let {workflowId, taskPath, updaters} = args;
-                Packets.catchError(socket, self.redis.updateTask(workflowId, taskPath, {
-                        contextUpdaters: {$set: updaters},
-                    })
-                                               .then(() => {
-                                                   sendTasksStatuses(socket, workflowId);
-                                               }),
-                );
-            })
-        });
+            },
+        );
     }
 
     /**
@@ -204,15 +243,19 @@ export class Jobs
      */
     public executeOneTask(workflowId : string, taskPath : string, callerSocket = null, argument = null)
     {
-        return this.controller.executeOneTask(workflowId, taskPath, callerSocket, argument);
+        return this.controller
+                   .executeOneTask(workflowId, taskPath, callerSocket, argument);
     }
 
     /**
      * Proxy to the controller's function
      */
-    public registerWorkflowGenerator(name : string, generator : WorkflowGenerator)
+    public;
+
+    registerWorkflowGenerator(name : string, generator : WorkflowGenerator)
     {
-        return this.controller.registerWorkflowGenerator(name, generator);
+        return this.controller
+                   .registerWorkflowGenerator(name, generator);
     }
 
     /**
