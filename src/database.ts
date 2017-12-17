@@ -32,6 +32,10 @@ export class Database
                 type: Sequelize.STRING,
                 limit: 250
             },
+            generator: {
+                type: Sequelize.STRING,
+                limit: 50
+            },
             createdAt: Sequelize.DATE,
             updatedAt: Sequelize.DATE,
         }, {

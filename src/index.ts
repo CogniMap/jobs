@@ -46,12 +46,22 @@ export class Jobs
      * @param workflowData Is the data used by the workflow generator
      * @param execute If true, execute all tasks (until error) of the workflow.
      */
-    public createWorkflowInstance(workflowGenerator : string, workflowData : any, baseContext = {},
-                                  execute : boolean = false) : Promise<string>
+    public createWorkflowInstance(workflowGenerator : string, workflowData : any, options : {
+        baseContext : any,
+        execute : boolean,
+        name : string
+    }) : Promise<string>
     {
         let workflowId = uniqid();
+        options = Object.assign({}, {
+            baseContext: {},
+            execute: false,
+            name: '',
+            generator: workflowGenerator
+        }, options);
         return this.database.Workflows.create({
             id: workflowId,
+            name: options.name,
         })
                    .then(workflowInstance => {
                        // Initialize the workflow instance in redis create tasks hashes
@@ -60,9 +70,9 @@ export class Jobs
                    .then(workflow => {
                        let paths = workflow.getAllPaths();
 
-                       return this.redis.initWorkflow(workflowGenerator, workflowData, paths, workflowId, baseContext)
+                       return this.redis.initWorkflow(workflowGenerator, workflowData, paths, workflowId, options.baseContext)
                                   .then(() => {
-                                      if (execute) {
+                                      if (options.execute) {
                                           workflow.execute(this.controller, null);
                                       }
 
@@ -198,7 +208,7 @@ export class Jobs
     /**
      * Get all workflow instances.
      */
-    public getAllWorfklows() : Promise<WorkflowInstance[]>
+    public getAllWorkflows() : Promise<WorkflowInstance[]>
     {
         return this.database.Workflows.findAll();
     }

@@ -27,7 +27,7 @@ declare class Jobs
 
     public registerWorkflowGenerator(name : string, generator : WorkflowGenerator);
 
-    public getAllWorfklows() : Promise<WorkflowInstance[]>;
+    public getAllWorkflows() : Promise<WorkflowInstance[]>;
 }
 
 /**
