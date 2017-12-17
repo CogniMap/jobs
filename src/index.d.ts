@@ -24,7 +24,7 @@ declare class Jobs
 
     public updateWorkflow(workflowId : string, workflowUpdater : any) : Promise<{}>;
 
-    public executeAllTasks(tasks : Task[], workflowId : string, startPath ? : string, callerSocket ? : any, argument ?: any);
+    public executeAllTasks(workflowId : string, callerSocket ? : any, argument ?: any);
 
     public setupWebsockets(server : any);
 
