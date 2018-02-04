@@ -10,8 +10,9 @@ export class Database
     public constructor(config : MysqlConfig)
     {
         let port = config.port || 3306;
+        let database = config.database || 'jobs';
         this.connection = new Sequelize(
-            'jobs', // Database name
+            database, // Database name
             config.username,
             config.password,
             {

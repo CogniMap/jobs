@@ -73,6 +73,7 @@ export interface MysqlConfig
     port ? : number;
     username : string;
     password : string;
+    database ?: string;
 }
 
 declare class Jobs
