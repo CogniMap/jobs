@@ -1,4 +1,4 @@
-import { TreeWorkflow } from './tree';
+import { TreeWorkflow } from './TreeWorkflow';
 
 module.exports = {
     TreeWorkflow,

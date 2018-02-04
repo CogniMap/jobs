@@ -1,7 +1,7 @@
 import { WorkflowStatus } from './index.d';
 
 /**
- * We build packets through functions, to make sure we always use the same protocol.
+ * We build websocket packets through functions, to make sure we always use the same protocol.
  */
 export namespace Packets
 {

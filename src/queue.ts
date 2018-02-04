@@ -1,12 +1,13 @@
 const kue = require('kue');
-const EventEmitter = require('events');
 
 import {
-    RedisConfig, ControllerInterface,
+    RedisConfig, BackendInterface,
 } from './index.d';
 import { ExecutionErrorType } from './common';
 import { Redis } from './redis';
 import { reduce } from './objects';
+import { TaskWatcher } from './backends/watcher';
+import { AsyncBackend } from './backends/AsyncBackend';
 
 export namespace Priority
 {
@@ -27,39 +28,31 @@ interface RunTaskJob
     progress(frame, total, data);
 }
 
-class JobEvents extends EventEmitter
-{
-}
 
 /**
  * Manage kue jobs that execute the workflow tasks.
  *
  * There is only one job type : execute a SINGLE task of a workflow.
  */
-export class Jobs
+export class Queue
 {
     private queue = null;
-    private controller : ControllerInterface;
+    private backend : AsyncBackend;
     private redis : Redis = null;
 
     /**
      * We use a WebSocket server to dispatch in real time the jobs progression (and logs).
      */
-    public constructor(config : RedisConfig, redis)
+    public constructor(config : RedisConfig, redis, backend : AsyncBackend)
     {
         this.queue = kue.createQueue({ // TODO use our redis client
             redis: config,
         });
         this.redis = redis;
-        this.controller = null;
+        this.backend = backend;
 
         // Setup kue
-        this.queue.process('runTask', this.runTaskHandler.bind(this));
-    }
-
-    public registerController(controller : ControllerInterface)
-    {
-        this.controller = controller;
+        this.queue.process('scheduleTask', this.runTaskHandler.bind(this));
     }
 
     /**
@@ -69,20 +62,20 @@ export class Jobs
     private runTaskHandler(job : RunTaskJob, done)
     {
         let self = this;
-        if (this.controller == null) {
+        if (this.backend == null) {
             throw new Error('No registered controller');
         }
 
-        this.redis.getWorkflowField(job.data.workflowId, 'baseContext')
+        this.backend.getWorkflowBaseContext(job.data.workflowId)
             .then(baseContext => {
-                self.controller.run(job.data.workflowId, job.data.taskPath, baseContext, job.data.argument)
+                self.backend.run(job.data.workflowId, job.data.taskPath, baseContext, job.data.argument)
 
                 /**
                  * Task success
                  */
                     .then((taskHash) => {
                         // TODO
-                        job.progress(42, 100, {eventName: 'complete', eventBody: taskHash});
+                        job.progress(42, 100, {status: 'complete', eventBody: taskHash});
                         done();
                     })
 
@@ -98,7 +91,7 @@ export class Jobs
                                 ... reduce(err, ['argument', 'context', 'body']),
                             } as any)
                                 .then(() => {
-                                    job.progress(42, 100, {eventName: 'failed', eventBody: err});
+                                    job.progress(42, 100, {status: 'failed', eventBody: err});
                                     done();
                                 });
                         } else {
@@ -112,50 +105,39 @@ export class Jobs
     }
 
     /**
-     * @return an event emitter of :
-     *  - complete : callback(res);
-     *  - failed : callback(err)
-     *
-     *  - job:progress
-     *  - job:start
+     * Schedule the given task in the queue.
      */
-    public runTask(workflowId, taskPath, argument = null)
+    public scheduleTask(workflowId, taskPath, argument = null) : TaskWatcher
     {
-        let jobEvents = new JobEvents();
-        let job = this.queue.create('runTask', {
+        let watcher = new TaskWatcher();
+        let job = this.queue.create('scheduleTask', {
             workflowId,
             taskPath,
             argument,
 
-            events: jobEvents,
+            events: watcher,
         })
                       .removeOnComplete(true);
-        // TODO .ttl(Jobs.jobs[type]);
+        // TODO .ttl(Queue.jobs[type]);
 
         job.save(function (err) {
-            // TODO
-            // Redirect events to all clients in the job room
-            //const send = (chanel, data) => {
-            //  Jobs.io.sockets.in(job.id).emit(chanel, Object.assign({}, data, {
-            //  job: job.id,
-            //  }));
-            //};
-
             // TODO : rewrite kue to have real events passed to the handler
             // For now, we use special progress values :
-            //    42, with the following data : {eventName, body}
+            //    42, with the following data : {status, body}.
             //    43, error before task execution
             job.on('progress', (progress, data) => {
                 if (progress == 42) {
-                    jobEvents.emit(data.eventName, data.eventBody);
+                    if (data.status == 'complete') {
+                        watcher.complete(data.eventBody);
+                    } else {
+                        watcher.failed(data.eventBody);
+                    }
                 } else if (progress == 43) {
-                    jobEvents.emit('error', data);
+                    watcher.error(data);
                 }
             });
-            job.on('start', () => {
-                jobEvents.emit('job:start');
-            });
+            job.on('start', () => watcher.start());
         });
-        return jobEvents;
+        return watcher;
     }
 }

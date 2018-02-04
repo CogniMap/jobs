@@ -4,20 +4,39 @@ const exphbs = require('express-handlebars');
 const bodyParser = require('body-parser');
 
 import { Jobs } from '../src/index';
-import { TreeWorkflow } from '../src/workflows/tree';
-import { Factory } from '../src/index.d';
+import { TreeWorkflow } from '../src/workflows/TreeWorkflow';
+import { Factory, WebsocketControllerConfig } from '../src/index.d';
 
 const app = Express();
 let server = http.Server(app);
-let jobs = new Jobs({
-    host: '0.0.0.0',
-    port: 6380,
-}, {
+const mysqlConfig = {
     host: '0.0.0.0',
     port: 3305,
     username: 'admin',
     password: 'password',
+};
+
+let webSocketJobs = new Jobs(mysqlConfig, {
+    type: Jobs.BACKEND_ASYNC,
+    config: {
+        redis: {
+            host: '0.0.0.0',
+            port: 6380,
+        },
+    },
+}, {
+    type: Jobs.CONTROLLER_WEBSOCKET,
+    config: {
+        server,
+    } as WebsocketControllerConfig,
 });
+
+let debugJobs = new Jobs(mysqlConfig, {
+    type: Jobs.BACKEND_SYNC,
+}, {
+    type: Jobs.CONTROLLER_BASE,
+});
+
 
 if (process.argv.length != 3) {
     console.log('Usage : node sever.js <Public JS path>');
@@ -28,12 +47,12 @@ console.log('Using public js : ' + publicJsPath);
 app.use('/js', Express.static(publicJsPath));
 
 app.engine('handlebars', exphbs({
-    layoutsDir: '../views/layouts',
+    layoutsDir: '../../views/layouts',
     defaultLayout: 'main',
 }));
 app.set('view engine', 'handlebars');
 
-jobs.registerWorkflowGenerator('test', (data) => {
+const generator = (data) => {
     let tasks = [
         {
             name: 'task1',
@@ -58,13 +77,20 @@ jobs.registerWorkflowGenerator('test', (data) => {
             name: 'task3',
             description: 'See updated context',
             execute: (arg, factory : Factory) => {
-                return Promise.resolve('Nothing');
+                return new Promise((resolve, reject) => {
+                    console.log('Start timeout ...');
+                    setTimeout(() => {
+                        console.log("... done");
+                        resolve('Nothing');
+                    }, 3000);
+                });
             },
             children: [],
         }, {
             name: 'task4',
             description: 'Returns a Promise.reject',
             execute: (arg, factory : Factory) => {
+                console.log('task4 (will fail)');
                 return Promise.reject('Error');
             },
             children: [],
@@ -80,38 +106,74 @@ jobs.registerWorkflowGenerator('test', (data) => {
     ];
 
     return new TreeWorkflow(tasks);
-});
+};
+
+webSocketJobs.registerWorkflowGenerator('test', generator);
+debugJobs.registerWorkflowGenerator('test', generator);
 
 app.get('/', function (req, res) {
     const testData = {
         payload: 'test',
     };
-    jobs.createWorkflowInstance('test', testData, {name: 'test_workflow'})
-        .then(workflowId => {
-            res.render('../../views/home', {
-                workflowId,
-            });
-        });
+    webSocketJobs.createWorkflowInstance('test', testData, {name: 'test_workflow'})
+                 .then(workflowId => {
+                     res.render('../../../views/home', {
+                         workflowId,
+                     });
+                 });
 });
 
 app.post('/executeAllTasks', bodyParser.json(), function (req, res) {
     let workflowId = req.body.workflowId;
     let initialArg = {};
     console.log('Execute all tasks');
-    jobs.executeAllTasks(workflowId, null, initialArg)
-        .then(workflowId => {
-            res.render('../../views/home', {
-                workflowId,
-            });
-        })
-        .catch(err => {
-             res.render('../../views/error', {
-                 error: JSON.stringify(err)
-            });
-        });
+    webSocketJobs.executeAllTasks(workflowId, initialArg)
+                 .then(workflowId => {
+                     res.render('../../../views/home', {
+                         workflowId,
+                     });
+                 })
+                 .catch(err => {
+                     res.render('../../../views/error', {
+                         error: JSON.stringify(err),
+                     });
+                 });
 });
 
-jobs.setupWebsockets(server);
+
+app.post('/executeAllTasks', bodyParser.json(), function (req, res) {
+    let workflowId = req.body.workflowId;
+    let initialArg = {};
+    console.log('Execute all tasks');
+    webSocketJobs.executeAllTasks(workflowId, initialArg)
+                 .then(workflowId => {
+                     res.render('../../../views/home', {
+                         workflowId,
+                     });
+                 })
+                 .catch(err => {
+                     res.render('../../../views/error', {
+                         error: JSON.stringify(err),
+                     });
+                 });
+});
+
+
+app.get('/testSync', function (req, res) {
+    const testData = {
+        payload: 'test',
+    };
+    debugJobs.createWorkflowInstance('test', testData, {name: 'test_workflow'})
+             .then(workflowId => {
+                 debugJobs.executeAllTasks(workflowId)
+                          .then(() => {
+                              res.json({result: 'ok (resolved)'});
+                          })
+                          .catch(() => {
+                              res.json({result: 'ok (rejected)'});
+                          });
+             });
+});
 
 server.listen(4005, function () {
     console.log('Listening on http://localhost:4005');

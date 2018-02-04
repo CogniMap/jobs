@@ -1,50 +1,75 @@
-const socketio = require('socket.io');
+import { Controller } from './controllers/Controller';
+
 const uniqid = require('uniqid');
 
-import { Controller } from './controller';
-import { Jobs as AsyncJobs } from './jobs';
-import { Packets } from './network';
+import { Backend } from './backends/Backend';
 import { Database } from './database';
 import {
-    RedisConfig, MysqlConfig,
-    WorkflowInstance, WorkflowGenerator, WorkflowHash, Workflow, WorkflowStatus,
-    TaskHash, Task, TaskError,
-    Statuses, TaskStatus,
+    BackendConfiguration, MysqlConfig, AsyncBackendConfiguration, SyncBackendConfiguration,
+    ControllerConfiguration, WebsocketControllerConfig,
+    WorkflowInstance, WorkflowGenerator, WorkflowHash, Workflow,
 } from './index.d';
-import { Redis } from './redis';
 import { update } from './immutability';
+import { WebsocketController } from './controllers/WebsocketController';
+import { AsyncBackend } from './backends/AsyncBackend';
+import { SyncBackend } from './backends/SyncBackend';
 
-export const Workflows = require('./workflows');
+require('./workflows');
 
+/**
+ * Main class to setup a controller and a backend.
+ */
 export class Jobs
 {
-    private redisConfig : {
-        host : string,
-        port : number,
-    };
-    private redis;
     private database;
-    private jobs : AsyncJobs;
+    private backend : Backend;
     private controller : Controller;
-    private io;
 
+    public static BACKEND_ASYNC = 'backend_async';
+    public static BACKEND_SYNC = 'backend_sync';
 
-    public constructor(redisConfig : RedisConfig, mysqlConfig : MysqlConfig)
+    public static CONTROLLER_BASE = 'controller_base';
+    public static CONTROLLER_WEBSOCKET = 'controller_websocket';
+
+    public constructor(mysqlConfig : MysqlConfig, backend : {
+        type : string,
+        config ? : BackendConfiguration
+    }, controller ? : {
+        type : string,
+        config ? : ControllerConfiguration
+    })
     {
-        this.redis = new Redis(redisConfig);
         this.database = new Database(mysqlConfig);
-        this.jobs = new AsyncJobs(redisConfig, this.redis);
-        this.controller = new Controller(this.redis, this.jobs);
-        this.io = null;
+        backend = Object.assign({}, {config: {}}, backend);
+        controller = Object.assign({}, {config: {}, type: Jobs.CONTROLLER_BASE}, controller || {});
+
+        // Initialize backend
+        switch (backend.type) {
+            case Jobs.BACKEND_ASYNC:
+                this.backend = new AsyncBackend(backend.config as AsyncBackendConfiguration);
+                break;
+            case Jobs.BACKEND_SYNC:
+                this.backend = new SyncBackend(backend.config as SyncBackendConfiguration);
+                break;
+        }
+
+        // Initialize controller
+        switch (controller.type) {
+            case Jobs.CONTROLLER_WEBSOCKET:
+                this.controller = new WebsocketController(this.backend, controller.config as WebsocketControllerConfig);
+                break;
+            case Jobs.CONTROLLER_BASE:
+                this.controller = new Controller(this.backend, controller.config);
+                break;
+        }
     }
 
     /**
      * This function create a new workflow instance, and returns its unique id.
      *
-     * Clients can then watch its progression with the websocket interface.
-     *
+     * @param workflowGenerator
      * @param workflowData Is the data used by the workflow generator
-     * @param execute If true, execute all tasks (until error) of the workflow.
+     * @param options
      */
     public createWorkflowInstance(workflowGenerator : string, workflowData : any, options : {
         baseContext ? : any,
@@ -65,197 +90,55 @@ export class Jobs
             name: options.name,
         })
                    .then(workflowInstance => {
-                       // Initialize the workflow instance in redis create tasks hashes
-                       return this.controller.generateWorkflow(workflowGenerator, workflowData, workflowId);
+                       return self.backend.initializeWorkflow(workflowGenerator, workflowData, workflowId,
+                           options.baseContext);
                    })
-                   .then(workflow => {
-                       let paths = workflow.getAllPaths();
+                   .then(() => {
+                       if (options.execute) {
+                           self.controller.executeAllTasks(workflowId);
+                       }
 
-                       return this.redis.initWorkflow(workflowGenerator, workflowData, paths, workflowId,
-                           options.baseContext)
-                                  .then(() => {
-                                      if (options.execute) {
-                                          self._executeAllTasks(workflow, '#');
-                                      }
-
-                                      return workflowId;
-                                  });
+                       return workflowId;
                    });
     }
 
     /**
-     * Get a workflow instance from a workflow id (generate tasks)
-     *
-     * @param workflowId
-     * @param {() => any} interCallback
-     * @returns {Promise<T>}
+     * Proxy to the controller
      */
-    private getWorkflow(workflowId, interCallback = () => null) : Promise<{
-        workflow : Workflow,
-        workflowHash : any
-    }>
+    public executeAllTasks(workflowId : string, argument = null) : Promise<any>
     {
-        let self = this;
-        return this.redis.getWorkflow(workflowId)
-                   .then((workflowHash : WorkflowHash) => {
-                       interCallback();
-                       return self.controller.generateWorkflow(workflowHash.generator,
-                           workflowHash.generatorData, workflowId)
-                                  .then(workflow => {
-                                      return {workflow, workflowHash};
-                                  });
-                   });
+        return this.controller.executeAllTasks(workflowId, argument);
     }
-
-
-    public executeAllTasks(workflowId : string, callerSocket = null, argument = null)
-    {
-        let self = this;
-        return this.getWorkflow(workflowId)
-                   .then(res => {
-                       let {workflow, workflowHash} = res;
-                       return self._executeAllTasks(workflow, callerSocket, argument);
-                   });
-    }
-
-    private _executeAllTasks(workflow : Workflow, callerSocket = null, argument = null)
-    {
-        return workflow.execute(this.controller, callerSocket, argument);
-    }
-
 
     /**
-     * Update the parameters of a workflow (the generator name, argument etc)
-     * This update does not invalidate already executed steps of the workflow.
+     * Cf Backend::updateWorkflow.
      *
      * Notify watchers of this workflow instance, if any
      *
      * @param workflowUpdater An updater of a WorkflowHash object
      */
-    public updateWorkflow(workflowId : string, workflowUpdater) : Promise<{}>
+    public updateWorkflow(workflowId : string, workflowUpdater) : Promise<any>
     {
-        return this.redis.getWorkflow(workflowId)
-                   .then((workflow : WorkflowHash) => {
-                       let newWorkflow = update(workflow, workflowUpdater);
-
-                       return this.redis.saveWorkflow(workflowId, newWorkflow);
+        return this.backend.updateWorkflow(workflowId, workflowUpdater)
+                   .then(() => {
+                       this.controller.onWorkflowUpdate(workflowId);
                    });
     }
 
     /**
-     * We use one socket.io room for each workflow instance. (The room name is the workflow id).
-     * This way, several clients can watch one workflow progression.
-     *
-     * This function setup the websockets.
-     *
-     * Upon arrival, the client can send the following messages :
-     *  - "watchWorkflowInstance" : To be notified of the worklow progress
-     * When in a workflow instance room, the server send the following messages :
-     *  - setWorkflowStatus(status : string)
-     *  - setTasksStatuses(taskPath : string, status : string, body ?: JSON string)
-     *     Status is one of the following :
-     *      - "queued" : The task will be executed soon
-     *      - "error" : The previous execution of the task failed
-     *      - "ok" : The previous execution of the task succeed
-     *      - "inactive" The task has not been executed yet
-     *     When the client start watching a workflow instance, the server send several statusMessages
-     *     for all tasks of the workflow.
-     *     Cf setTasksStatuses() for more details
-     *  - workflowDescription(tasks) Send a WorkflowTasks to the client
+     * Proxy to the controller
      */
-    public setupWebsockets(server)
+    public executeOneTask(workflowId : string, taskPath : string, argument = null)
     {
-        let self = this;
-        this.io = socketio.listen(server);
-        this.controller.registerSockets(this.io);
-
-        this.io.on('connection', function (socket) {
-                Packets.hello(socket);
-
-                // Get and send the status of all tasks of the given workflow
-                function sendWorkflowStatus(workflowHash : WorkflowHash, workflow : Workflow)
-                {
-                    Packets.setWorkflowStatus(socket, workflow.id, workflowHash.status);
-                    sendTasksStatuses(socket, workflow.id);
-                }
-
-                function sendTasksStatuses(socket, workflowId)
-                {
-                    self.getWorkflow(workflowId)
-                        .then(res => {
-                            let {workflow, workflowHash} = res;
-                            let paths = workflow.getAllPaths();
-                            return self.redis.getTasksStatuses(paths, workflow.id)
-                                       .then(statuses => {
-                                           Packets.setTasksStatuses(socket, workflow.id, statuses);
-                                       });
-                        });
-                }
-
-                // Watch a workflow instance events
-                socket.on('watchWorkflowInstance', function (workflowId) {
-                    Packets.catchError(socket, self.getWorkflow(workflowId, () => {
-                            socket.join(workflowId);
-                        })
-                                                   .then(res => {
-                                                       let {workflow, workflowHash} = res;
-
-                                                       let description = workflow.describe();
-                                                       Packets.workflowDescription(socket, workflowId, description.tasks);
-
-                                                       // Get initial status
-                                                       sendWorkflowStatus(workflowHash, workflow);
-                                                   }),
-                    );
-                });
-
-                socket.on('executeTask', function (args) {
-                    let {workflowId, taskPath, arg} = args;
-                    Packets.catchError(socket, self.executeOneTask(workflowId, taskPath, socket));
-                });
-
-                socket.on('executeAllTasks', function (args) {
-                    let {workflowId, taskPath, initialArg } = args;
-                    Packets.catchError(socket,
-                        self.executeAllTasks(workflowId, socket, initialArg),
-                    );
-                });
-
-                socket.on('setContextUpdaters', function (args) {
-                        let {workflowId, taskPath, updaters} = args;
-                        Packets.catchError(socket, self.redis.updateTask(workflowId, taskPath, {
-                                contextUpdaters: {$set: updaters},
-                            })
-                                                       .then(() => {
-                                                           sendTasksStatuses(socket, workflowId);
-                                                       }),
-                        );
-                    },
-                );
-            },
-        );
+        return this.controller.executeOneTask(workflowId, taskPath, argument);
     }
 
     /**
-     * Proxy function to the controller.
-     *
-     * Cf controller.ts
+     * Proxy to the backend.
      */
-    public executeOneTask(workflowId : string, taskPath : string, callerSocket = null, argument = null)
+    public registerWorkflowGenerator(name : string, generator : WorkflowGenerator)
     {
-        return this.controller
-                   .executeOneTask(workflowId, taskPath, callerSocket, argument);
-    }
-
-    /**
-     * Proxy to the controller's function
-     */
-    public;
-
-    registerWorkflowGenerator(name : string, generator : WorkflowGenerator)
-    {
-        return this.controller
-                   .registerWorkflowGenerator(name, generator);
+        return this.backend.registerWorkflowGenerator(name, generator);
     }
 
     /**

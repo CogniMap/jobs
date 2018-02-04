@@ -1,8 +1,71 @@
+/******************************************************************************
+ * Controllers
+ ******************************************************************************/
+
+export interface ControllerConfiguration
+{
+
+}
+
+export interface WebsocketControllerConfig
+{
+    server : any;
+}
+
+export interface ControllerInterface
+{
+    executeOneTask(workflowId : string, taskPath : string, argument ?: any) : Promise<TaskHash>;
+
+    executeAllTasks(workflowId : string, argument ?: any) : Promise<{}>;
+
+    finishWorkflow(workflowId : string);
+}
+
+
+/******************************************************************************
+ * Backends
+ ******************************************************************************/
+
 export interface RedisConfig
 {
     host : string;
     port ? : number;
 }
+
+export interface BackendConfiguration
+{
+}
+
+export interface SyncBackendConfiguration extends BackendConfiguration
+{
+}
+
+export interface AsyncBackendConfiguration extends BackendConfiguration
+{
+    redis : RedisConfig;
+}
+
+interface Factory
+{
+    context : any;
+    previousContext : any;
+
+    updateContext(updater : any) : void;
+
+    saveInstance(model, data);
+}
+
+declare interface BackendInterface
+{
+    registerWorkflowGenerator(name : string, generator : WorkflowGenerator);
+
+    executeOneTask(workflowId : string, taskPath : string, callerSocket ? : any, argument ? : any)
+}
+
+
+/******************************************************************************
+ * Main Jobs object
+ ******************************************************************************/
 
 export interface MysqlConfig
 {
@@ -14,7 +77,19 @@ export interface MysqlConfig
 
 declare class Jobs
 {
-    public constructor(redisConfig : RedisConfig, mysqlConfig : MysqlConfig);
+    public static BACKEND_ASYNC : string;
+    public static BACKEND_SYNC : string;
+
+    public static CONTROLLER_BASE : string;
+    public static CONTROLLER_WEBSOCKETS : string;
+
+    public constructor(mysqlConfig : MysqlConfig, backend : {
+        type : string,
+        config : BackendConfiguration
+    }, controller : {
+        type: string,
+        config: ControllerConfiguration
+    });
 
     public createWorkflowInstance(workflowGenerator : string, workflowData : any, options ? : {
         baseContext ? : any,
@@ -24,9 +99,7 @@ declare class Jobs
 
     public updateWorkflow(workflowId : string, workflowUpdater : any) : Promise<{}>;
 
-    public executeAllTasks(workflowId : string, callerSocket ? : any, argument ?: any);
-
-    public setupWebsockets(server : any);
+    public executeAllTasks(workflowId : string, argument ? : any) : Promise<any>;
 
     public registerWorkflowGenerator(name : string, generator : WorkflowGenerator);
 
@@ -34,6 +107,11 @@ declare class Jobs
 
     public executeOneTask(workflowId : string, taskPath : string, callerSocket ? : any, argument ? : any)
 }
+
+
+/******************************************************************************
+ *      Workflow & Tasks
+ ******************************************************************************/
 
 /**
  * An instance in the sequelize database.
@@ -75,24 +153,7 @@ export interface WorkflowTreeTasks
 
 export interface Statuses
 {
-    [taskPath : string] : {
-        status : TaskStatus;
-        body : any;
-        context : any;
-        argument : any;
-        contextUpdaters : any;
-
-        executionTime ? : number;
-    };
-}
-
-declare interface ControllerInterface
-{
-    run(workflowId : string, path ? : string, baseContext ? : any, argument ? : any) : Promise<any>;
-
-    finishWorkflow(workflowId : string);
-
-    executeOneTask(workflowId : string, taskPath : string, callerSocket ? : any, argument ? : any)
+    [taskPath : string] : TaskHash;
 }
 
 export interface Task
@@ -117,29 +178,9 @@ export interface Task
     execute ? : {(arg, factory : Factory) : Promise<any>;};
 }
 
-interface Factory
-{
-    controller : ControllerInterface;
-    context : any;
-    previousContext : any;
-
-    updateContext(updater : any) : void;
-
-    saveInstance(model, data);
-}
-
-
 export interface Workflow
 {
-    redis : any;
-    id : string;
-
-    getTask(path : string, baseContext) : Promise<{
-        context : {[varName : string] : any;};
-        resultContext : {[varName : string] : any;};
-        task : Task;
-        prevResult : any,
-    }>;
+    id: string;
 
     /**
      * Flatten all task paths of a workflow.
@@ -154,7 +195,9 @@ export interface Workflow
     /**
      * Execute the whole workflow (until error)
      */
-    execute(controller : ControllerInterface, callerSocket ?: any, argument ?: any) : void;
+    execute(controller : ControllerInterface, argument ? : any) : void;
+
+    getTask(path : string, baseContext, getTaskHash : {(workflowId : string, taskPath : string) : Promise<TaskHash>});
 }
 
 export interface TaskError
@@ -173,6 +216,9 @@ export interface WorkflowGenerator
     (data : any) : Workflow | Promise<Workflow>;
 }
 
+/**
+ * Workflow state and configuration.
+ */
 export interface WorkflowHash
 {
     status : WorkflowStatus;
@@ -183,6 +229,9 @@ export interface WorkflowHash
     generatorData : any;
 }
 
+/**
+ * The trace of a task execution, for a given workflow.
+ */
 export interface TaskHash
 {
     // Result

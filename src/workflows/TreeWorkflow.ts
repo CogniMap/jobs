@@ -1,13 +1,13 @@
-import { getResultContext } from './context';
-
 const Promise = require('bluebird');
 
-import { BaseWorkflow } from './workflow';
+import { TaskWatcher } from '../backends/watcher';
+import { BaseWorkflow } from './BaseWorkflow';
 import {
+    ControllerInterface,
     WorkflowTreeTasks,
-    Tasks,
-    ControllerInterface, Factory,
+    Tasks, TaskHash,
 } from '../index.d';
+import { getResultContext } from './context';
 import { ExecutionErrorType } from '../common';
 import { promisesFor } from '../promises';
 
@@ -28,14 +28,18 @@ export class TreeWorkflow extends BaseWorkflow
         this.tasks = tasks;
     }
 
-    public getTask(path : string, baseContext)
+    /**
+     * @inheritDoc
+     */
+    public getTask(path : string, baseContext,
+                   getTaskHash : {(workflowId : string, taskPath : string) : Promise<TaskHash>})
     {
         let self = this;
 
         function _getTask(tasks : Tasks.TreeTask[], targetPath : string, currentContext = {}, prevResult = {},
                           currentPath = '#', minExecutionTime : number = 0) : Promise<{
             context : {[varName : string] : any;};
-            resultContext: {[varName: string]: any;};
+            resultContext : {[varName : string] : any;};
             task : Tasks.TreeTask;
             prevResult : any,
         }>
@@ -43,14 +47,15 @@ export class TreeWorkflow extends BaseWorkflow
             return promisesFor(tasks, (i, task : Tasks.TreeTask, breakFor, continueFor) => {
                 let taskPath = currentPath + '.' + task.name;
                 if (taskPath == targetPath) {
-                    return self.redis.getTask(self.id, taskPath).then(taskHash => {
-                        let resultContext = getResultContext(taskHash, currentContext);
-                        return breakFor({
-                            task, prevResult,
-                            context: currentContext,
-                            resultContext
+                    return getTaskHash(self.id, taskPath)
+                        .then(taskHash => {
+                            let resultContext = getResultContext(taskHash, currentContext);
+                            return breakFor({
+                                task, prevResult,
+                                context: currentContext,
+                                resultContext,
+                            });
                         });
-                    });
                 } else if ((targetPath as any).startsWith(taskPath)) {
                     if (task.children.length == 0) {
                         return Promise.reject({
@@ -58,55 +63,48 @@ export class TreeWorkflow extends BaseWorkflow
                             payload: 'Missing task "' + targetPath + '"',
                         });
                     } else {
-                        // TODO
+                        // TODO go deeper
                         return Promise.reject({
                             type: ExecutionErrorType.SCHEDULER_ERROR,
                             payload: 'Parallels not supported yet (getTask)',
                         });
-                        // Go deeper
-                        //return getTask(
-                        //  taskWithSubtasks.subTasks,
-                        //  targetPath,
-                        //  Object.assign({}, currentPromiseContext, {
-                        //    [taskWithSubtasks.dest]: taskResult
-                        //  }),
-                        //  taskPath,
-                        //  taskHash.executionTime
-                        //  );
                     }
                 }
 
                 // Find the result for this task
-                return self.redis.getTask(self.id, taskPath)
-                           .then(taskHash => {
-                               // Make sure this task was executed after the previous ones, and was successfull
-                               if (taskHash.status != 'ok') {
-                                   return Promise.reject({
-                                       type: ExecutionErrorType.CANNOT_START_TASK,
-                                       payload: 'The task "' + taskPath + '" need to be re-executed (Current status is : "' + taskHash.status + '")',
-                                   });
-                               }
-                               if (taskHash.executionTime < minExecutionTime) {
-                                   return Promise.reject({
-                                       type: ExecutionErrorType.CANNOT_START_TASK,
-                                       payload: 'The task "' + taskPath + '" need to be re-executed (previous tasks have been executed afterward)',
-                                   });
-                               }
-                               minExecutionTime = taskHash.executionTime;
-                               prevResult = taskHash.body;
+                return getTaskHash(self.id, taskPath)
+                    .then(taskHash => {
+                        // Make sure this task was executed after the previous ones, and was successfull
+                        if (taskHash.status != 'ok') {
+                            return Promise.reject({
+                                type: ExecutionErrorType.CANNOT_START_TASK,
+                                payload: 'The task "' + taskPath + '" need to be re-executed (Current status is : "' + taskHash.status + '")',
+                            });
+                        }
+                        if (taskHash.executionTime < minExecutionTime) {
+                            return Promise.reject({
+                                type: ExecutionErrorType.CANNOT_START_TASK,
+                                payload: 'The task "' + taskPath + '" need to be re-executed (previous tasks have been executed afterward)',
+                            });
+                        }
+                        minExecutionTime = taskHash.executionTime;
+                        prevResult = taskHash.body;
 
-                               // Update the context
-                               if (task.contextVar != null) {
-                                   currentContext[task.contextVar] = prevResult;
-                               }
-                               currentContext = getResultContext(taskHash, currentContext);
-                           });
+                        // Update the context
+                        if (task.contextVar != null) {
+                            currentContext[task.contextVar] = prevResult;
+                        }
+                        currentContext = getResultContext(taskHash, currentContext);
+                    });
             });
         }
 
         return _getTask(this.tasks, path, baseContext);
     }
 
+    /**
+     * @inheritDoc
+     */
     public describe() : {tasks : WorkflowTreeTasks;}
     {
         function describeTasks(tasks : Tasks.TreeTask[], pathPrefix = '#') : WorkflowTreeTasks
@@ -126,6 +124,9 @@ export class TreeWorkflow extends BaseWorkflow
         };
     }
 
+    /**
+     * @inheritDoc
+     */
     public getAllPaths() : string[]
     {
         function getPaths(tasks : Tasks.TreeTask[], pathPrefix = '#')
@@ -142,33 +143,34 @@ export class TreeWorkflow extends BaseWorkflow
         return getPaths(this.tasks);
     }
 
-    public execute(controller : ControllerInterface, callerSocket = null, argument = null) : void
+    /**
+     * @inheritDoc
+     */
+    public execute(controller : ControllerInterface, argument = null) : Promise<any>
     {
         let self = this;
         let startTask = '#.' + this.tasks[0].name;
 
         function executeNextTask(path : string, argument = null)
         {
-            controller.executeOneTask(self.id, path, callerSocket, argument)
-                      .then((jobEvents : any) => {
-                          jobEvents.on('complete', function (res) {
-                              try {
-                                  let nextPath = self.getNextTask(path);
-                                  executeNextTask(nextPath);
+            return controller.executeOneTask(self.id, path, argument)
+                      .then((taskHash) => {
+                          try {
+                              let nextPath = self.getNextTask(path);
+                              return executeNextTask(nextPath);
 
+                          }
+                          catch (e) {
+                              if (e === 'NoNextTask') {
+                                  controller.finishWorkflow(self.id);
+                              } else {
+                                  return Promise.reject(e);
                               }
-                              catch (e) {
-                                  if (e === 'NoNextTask') {
-                                      controller.finishWorkflow(self.id);
-                                  } else {
-                                      throw e;
-                                  }
-                              }
-                          });
+                          }
                       });
         }
 
-        executeNextTask(startTask, argument);
+        return executeNextTask(startTask, argument);
     }
 
     /**

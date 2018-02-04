@@ -5,15 +5,32 @@ This library easily manage background jobs, and track their progress in real tim
 
 It is composed of two parts :
 
-- A backend, based on redis to store jobs progress and on NodeJs to trigger and execute 
-these jobs.
-- Frontend integrations : We try to support as many UI frameworks to display the job
+- A server, to store jobs traces (results, progress etc), and execute them
+- Clients integrations : We try to support as many UI frameworks to display the job
 progress in real time (we use WebSockets). Currently, we support the following frameworks:
   - React
 
-# Backend
+# Server
 
-The backend works on top of an Express server.
+The server uses Express.
+
+It can be configured with several components : workflows, backends and controllers
+
+
+## Workflows
+
+A workflow is a collection of tasks. It describes how they should be executed (in parrallel etc).
+
+Each task is identified by a task path (a string, starting with a '#'.
+
+### Instances
+
+A workflow is described by a *generator* and *data* (an argument for the generator). With these two elements, one can 
+create *workflow instances*. These instances can execute the tasks of the workflow.
+
+Instances are indexed in a mysql database.
+
+### Tasks
 
 Tasks description :
 ```
@@ -49,6 +66,14 @@ redis database (as JSON).
 
 Also track execution time of all tasks, and make sure it is consistent during evaluation.
 
+## Backends
+
+Backends execute tasks and save their results.
+
+### Async backend
+
+The **AsyncBackend** uses a redis database to store jobs progression, and kue to queue them and execute them asynchronously.
+
 The following hash is stored in redis, for every task ran of a workflow execution :
 ```
 workflowTask_<workflowId>_<taskPath>: {
@@ -64,7 +89,20 @@ Also store logs under the following list :
 logs_<workflowId>_<taskPath>: string[]
 ```
 
-How to run a workflow ?
+## Controllers
+
+Entry points to execute or schedule tasks are in the main Jobs class. 
+
+You can however use a special controller to setup extra access points to execute tasks.
+
+### WebSockets
+
+The websocket controller enables you to watch tasks progression through websockets.
+The client can execute tasks though websocket packets too.
+
+## Examples
+
+How to run a workflow using an async backend through websockets ?
 
 - Setup the websocket server with setupWebsocket()
 - Register a workflow with registerWorkflow()
@@ -72,7 +110,7 @@ How to run a workflow ?
 - Connect to the websocket server and send the "watchWorkflowInstance" message
 - The client will receive "setTasksStatues" message to update the progression
 
-# Frontends
+# Clients 
 
 ## React
 
