@@ -14,7 +14,7 @@ import { WebsocketController } from './controllers/WebsocketController';
 import { AsyncBackend } from './backends/AsyncBackend';
 import { SyncBackend } from './backends/SyncBackend';
 
-require('./workflows');
+export const Workflows = require('./workflows');
 
 /**
  * Main class to setup a controller and a backend.
@@ -95,7 +95,8 @@ export class Jobs
                    })
                    .then(() => {
                        if (options.execute) {
-                           self.controller.executeAllTasks(workflowId);
+                           return self.controller.executeAllTasks(workflowId)
+                                      .then(() => workflowId);
                        }
 
                        return workflowId;
