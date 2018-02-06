@@ -33,7 +33,7 @@ export class Controller implements ControllerInterface
                             reject(err.payload);
                         })
                         .on('error', reject);
-                })
+                });
         });
     }
 
@@ -57,12 +57,23 @@ export class Controller implements ControllerInterface
 
     /**
      * Called when all tasks of the workflow have been executed.
+     * Usually it's called from the Workflow instance (that knows own tasks are chained).
+     *
+     * If the workflow is ephemeral, delete it
      *
      * @param {string} workflowId
      */
-    public finishWorkflow(workflowId : string)
+    public finishWorkflow(workflowId : string) : Promise<{}>
     {
-        this.backend.setWorkflowStatus(workflowId, 'done' as WorkflowStatus);
+        let self = this;
+        return this.backend.getWorkflow(workflowId)
+            .then(({workflow, workflowHash}) => {
+                if (workflowHash.ephemeral) {
+                    return this.backend.deleteWorkflow(workflowId);
+                } else {
+                    return this.backend.setWorkflowStatus(workflowId, 'done' as WorkflowStatus);
+                }
+            });
     }
 
     public onWorkflowUpdate(workflowId : string)

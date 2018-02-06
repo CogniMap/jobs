@@ -36,12 +36,12 @@ export class AsyncBackend extends Backend implements BackendInterface
         this.queue = new Queue(config.redis, this.redis, this);
     }
 
-    public initializeWorkflow(workflowGenerator : string, workflowData : any, workflowId : string, baseContext = {})
+    public initializeWorkflow(workflowGenerator : string, workflowData : any, workflowId : string, options)
     {
         return this.generateWorkflow(workflowGenerator, workflowData, workflowId)
                    .then(workflow => {
                        let paths = workflow.getAllPaths();
-                       return this.redis.initWorkflow(workflowGenerator, workflowData, paths, workflowId, baseContext);
+                       return this.redis.initWorkflow(workflowGenerator, workflowData, paths, workflowId, options.baseContext, options.ephemeral);
                    });
     }
 
@@ -246,6 +246,23 @@ export class AsyncBackend extends Backend implements BackendInterface
     public getTasksStatuses(paths : string[], workflowId : string) : Promise<Statuses>
     {
         return this.redis.getTasksStatuses(paths, workflowId);
+    }
+
+    /**
+     * Delete tasks hashs and workflow hash in redis.
+     *
+     * @inheritDoc
+     */
+    public deleteWorkflow(workflowId : string) : Promise<{}>
+    {
+        return this.getWorkflow(workflowId)
+            .then(({workflow, workflowHash}) => {
+                let paths = workflow.getAllPaths();
+                return Promise.all([
+                    this.redis.deleteWorkflow(workflowId),
+                    this.redis.deleteTasks(workflowId, paths)
+                ]);
+            });
     }
 }
 

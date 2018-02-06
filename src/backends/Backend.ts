@@ -42,9 +42,15 @@ export abstract class Backend
     /**
      * Initialize the workflow tasks hashes.
      *
-     * @param {Workflow} workflow
+     * @param workflowGenerator
+     * @param workflowData
+     * @param workflowId
+     * @param options
      */
-    public abstract initializeWorkflow(workflowGenerator : string, workflowData : any, workflowId : string, baseContext) : Promise<any>;
+    public abstract initializeWorkflow(workflowGenerator : string, workflowData : any, workflowId : string, options : {
+        baseContext : any,
+        ephemeral : any,
+    }) : Promise<any>;
 
     /**
      * Update or create a sequelize entity.
@@ -112,4 +118,11 @@ export abstract class Backend
     public abstract setWorkflowStatus(workflowId : string, status : WorkflowStatus) : Promise<{}>;
 
     public abstract getTasksStatuses(paths : string[], workflowId : string) : Promise<Statuses>
+
+    /**
+     * Delete all data related to the given workflow.
+     *
+     * @param {string} workflowId
+     */
+    public abstract deleteWorkflow(workflowId : string) : Promise<{}>;
 }

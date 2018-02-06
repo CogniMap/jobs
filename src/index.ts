@@ -74,6 +74,7 @@ export class Jobs
     public createWorkflowInstance(workflowGenerator : string, workflowData : any, options : {
         baseContext ? : any,
         execute ? : boolean,
+        ephemeral ? : boolean,
         name ? : string
     } = {}) : Promise<string>
     {
@@ -82,6 +83,7 @@ export class Jobs
         options = Object.assign({}, {
             baseContext: {},
             execute: false,
+            ephemeral: false,
             name: '',
             generator: workflowGenerator,
         }, options);
@@ -90,8 +92,7 @@ export class Jobs
             name: options.name,
         })
                    .then(workflowInstance => {
-                       return self.backend.initializeWorkflow(workflowGenerator, workflowData, workflowId,
-                           options.baseContext);
+                       return self.backend.initializeWorkflow(workflowGenerator, workflowData, workflowId, options as any);
                    })
                    .then(() => {
                        if (options.execute) {

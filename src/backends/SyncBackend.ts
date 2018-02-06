@@ -37,7 +37,7 @@ export class SyncBackend extends Backend implements BackendInterface
         this.contexts = {};
     }
 
-    public initializeWorkflow(workflowGenerator : string, workflowData : any, workflowId : string, baseContext = {})
+    public initializeWorkflow(workflowGenerator : string, workflowData : any, workflowId : string, options)
     {
         let self = this;
         return this.generateWorkflow(workflowGenerator, workflowData, workflowId)
@@ -58,9 +58,10 @@ export class SyncBackend extends Backend implements BackendInterface
                            hash: {
                                generator: workflowGenerator,
                                generatorData: workflowData,
-                               baseContext,
+                               baseContext: options.baseContext,
+                               ephemeral: options.ephemeral,
                                status: 'working' as WorkflowStatus,
-                           },
+                           } as WorkflowHash,
                            tasks,
                        };
                    });
@@ -241,6 +242,16 @@ export class SyncBackend extends Backend implements BackendInterface
     public getWorkflowBaseContext(workflowId : string) : Promise<any>
     {
         return this.workflows[workflowId].hash.baseContext;
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public deleteWorkflow(workflowId : string) : Promise<{}>
+    {
+        delete this.workflows[workflowId];
+        delete this.contexts[workflowId];
+        return Promise.resolve();
     }
 }
 

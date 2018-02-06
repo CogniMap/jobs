@@ -68,7 +68,7 @@ export class Redis
      *******************************************************/
 
     public initWorkflow(workflowGenerator : string, generatorData : any, paths : string[], workflowId : string,
-                        baseContext)
+                        baseContext, ephemeral : boolean)
     {
         let query = this.redis.multi();
         query.hmset('workflow_' + workflowId, this.redify({
@@ -78,6 +78,7 @@ export class Redis
             generatorData,
 
             baseContext,
+            ephemeral,
         } as WorkflowHash));
         for (let path of paths) {
             query.hmset('workflowTask_' + workflowId + '_' + path, this.redify({
@@ -123,6 +124,11 @@ export class Redis
     public setWorkflowStatus(workflowId, status : WorkflowStatus)
     {
         return this.redis.hsetAsync('workflow_' + workflowId, 'status', JSON.stringify(status));
+    }
+
+    public deleteWorkflow(workflowId : string) : Promise<{}>
+    {
+        return this.redis.delAsync('workflow_' + workflowId);
     }
 
     /********************************************************
@@ -188,5 +194,14 @@ export class Redis
                 }
             });
         });
+    }
+
+    public deleteTasks(workflowId : string, paths : string[]) : Promise<{}>
+    {
+        let query = this.redis.multi();
+        for (let path of paths) {
+            query.del(this.getTaskHash(workflowId, path));
+        }
+        return query.execAsync();
     }
 }

@@ -14,9 +14,9 @@ export interface WebsocketControllerConfig
 
 export interface ControllerInterface
 {
-    executeOneTask(workflowId : string, taskPath : string, argument ?: any) : Promise<TaskHash>;
+    executeOneTask(workflowId : string, taskPath : string, argument ? : any) : Promise<TaskHash>;
 
-    executeAllTasks(workflowId : string, argument ?: any) : Promise<{}>;
+    executeAllTasks(workflowId : string, argument ? : any) : Promise<{}>;
 
     finishWorkflow(workflowId : string);
 }
@@ -73,7 +73,7 @@ export interface MysqlConfig
     port ? : number;
     username : string;
     password : string;
-    database ?: string;
+    database ? : string;
 }
 
 declare class Jobs
@@ -88,12 +88,13 @@ declare class Jobs
         type : string,
         config : BackendConfiguration
     }, controller : {
-        type: string,
-        config: ControllerConfiguration
+        type : string,
+        config : ControllerConfiguration
     });
 
     public createWorkflowInstance(workflowGenerator : string, workflowData : any, options ? : {
         baseContext ? : any,
+        ephemeral ? : boolean,
         execute ? : boolean,
         name ? : string
     }) : Promise<string>;
@@ -181,7 +182,7 @@ export interface Task
 
 export interface Workflow
 {
-    id: string;
+    id : string;
 
     /**
      * Flatten all task paths of a workflow.
@@ -225,6 +226,7 @@ export interface WorkflowHash
     status : WorkflowStatus;
 
     baseContext : any;
+    ephemeral : boolean;
 
     generator : string;
     generatorData : any;

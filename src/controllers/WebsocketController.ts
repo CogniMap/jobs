@@ -156,12 +156,13 @@ export class WebsocketController extends Controller
     /**
      * @inheritDoc
      */
-    public finishWorkflow(workflowId : string)
+    public finishWorkflow(workflowId : string) : Promise<{}>
     {
-        super.finishWorkflow(workflowId);
-
-        if (this.io != null) {
-            Packets.setWorkflowStatus(this.io.sockets.in(workflowId), workflowId, 'done');
-        }
+        return (super.finishWorkflow(workflowId) as any)
+                    .then(() => {
+                        if (this.io != null) {
+                            Packets.setWorkflowStatus(this.io.sockets.in(workflowId), workflowId, 'done');
+                        }
+                    });
     }
 }

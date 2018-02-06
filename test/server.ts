@@ -2,6 +2,7 @@ const Express = require('express');
 const http = require('http');
 const exphbs = require('express-handlebars');
 const bodyParser = require('body-parser');
+const intersection = require('lodash/intersection');
 
 import { Jobs } from '../src/index';
 import { TreeWorkflow } from '../src/workflows/TreeWorkflow';
@@ -52,7 +53,7 @@ app.engine('handlebars', exphbs({
 }));
 app.set('view engine', 'handlebars');
 
-const generator = (data) => {
+const generator1 = (data) => {
     let tasks = [
         {
             name: 'task1',
@@ -80,7 +81,7 @@ const generator = (data) => {
                 return new Promise((resolve, reject) => {
                     console.log('Start timeout ...');
                     setTimeout(() => {
-                        console.log("... done");
+                        console.log('... done');
                         resolve('Nothing');
                     }, 3000);
                 });
@@ -108,56 +109,110 @@ const generator = (data) => {
     return new TreeWorkflow(tasks);
 };
 
-webSocketJobs.registerWorkflowGenerator('test', generator);
-debugJobs.registerWorkflowGenerator('test', generator);
+const generator2 = (data) => {
+    let tasks = [
+        {
+            name: 'task1',
+            description: 'Returns a Promise.resolve',
+            execute: (arg, factory : Factory) => {
+                console.log('Initial argument : ');
+                console.log(arg);
+                return Promise.resolve('OK');
+            },
+            children: [],
+        }, {
+            name: 'task2',
+            description: 'Update context',
+            execute: (arg, factory : Factory) => {
+                factory.updateContext({
+                    test: {$set: 'ok'},
+                });
+                return Promise.resolve('Context updated');
+            },
+            children: [],
+        },
+    ];
+
+    return new TreeWorkflow(tasks);
+};
+
+
+webSocketJobs.registerWorkflowGenerator('test1', generator1);
+webSocketJobs.registerWorkflowGenerator('test2', generator2);
+debugJobs.registerWorkflowGenerator('test', generator1);
 
 app.get('/', function (req, res) {
     const testData = {
         payload: 'test',
     };
-    webSocketJobs.createWorkflowInstance('test', testData, {name: 'test_workflow'})
-                 .then(workflowId => {
+    Promise.all([
+        webSocketJobs.createWorkflowInstance('test1', testData, {name: 'test_workflow1'}),
+        webSocketJobs.createWorkflowInstance('test2', testData, {
+            name: 'test_workflow2',
+            ephemeral: true,
+        }),
+        webSocketJobs.createWorkflowInstance('test2', testData, {
+            name: 'test_workflow3',
+            ephemeral: true,
+        })
+    ])
+
+                 .then(workflowIds => {
                      res.render('../../../views/home', {
-                         workflowId,
+                         singleWorkflowId: workflowIds[0],
+                         multiWorkflowIds: JSON.stringify([workflowIds[1], workflowIds[2]]),
                      });
                  });
 });
 
-app.post('/executeAllTasks', bodyParser.json(), function (req, res) {
+function sendResults(promise, res)
+{
+    promise
+        .then(() => {
+            res.json({result: 'ok'});
+        })
+        .catch((err) => {
+            console.log(err);
+            res.json({result: 'failed'});
+        });
+}
+
+/**
+ * Execute all tasks of a single workflow.
+ */
+app.post('/executeAllTasksSingle', bodyParser.json(), function (req, res) {
     let workflowId = req.body.workflowId;
     let initialArg = {};
     console.log('Execute all tasks');
-    webSocketJobs.executeAllTasks(workflowId, initialArg)
-                 .then(workflowId => {
-                     res.render('../../../views/home', {
-                         workflowId,
-                     });
-                 })
-                 .catch(err => {
-                     res.render('../../../views/error', {
-                         error: JSON.stringify(err),
-                     });
-                 });
+    sendResults(webSocketJobs.executeAllTasks(workflowId, initialArg), res);
 });
 
 
-app.post('/executeAllTasks', bodyParser.json(), function (req, res) {
-    let workflowId = req.body.workflowId;
-    let initialArg = {};
+/**
+ * Execute all tasks of several workflows
+ */
+app.post('/executeAllTasksMulti', bodyParser.json(), function (req, res) {
+    let workflowIds = req.body.workflowIds;
+    const initialArg = {};
     console.log('Execute all tasks');
-    webSocketJobs.executeAllTasks(workflowId, initialArg)
-                 .then(workflowId => {
-                     res.render('../../../views/home', {
-                         workflowId,
-                     });
-                 })
-                 .catch(err => {
-                     res.render('../../../views/error', {
-                         error: JSON.stringify(err),
-                     });
-                 });
+    sendResults(Promise.all(workflowIds.map(workflowId => {
+        webSocketJobs.executeAllTasks(workflowId, initialArg);
+    })), res);
 });
 
+/**
+ * Check if the given workflow exist.
+ */
+app.post('/hasWorkflows', bodyParser.json(), function (req, res) {
+    let workflowIds = req.body.workflowIds;
+    webSocketJobs.getAllWorkflows()
+        .then(allWorkflows => {
+            let allWorkflowIds = allWorkflows.map(workflowInstance => workflowInstance.id);
+            res.json({
+                existing: intersection(workflowIds, allWorkflowIds)
+            });
+        });
+});
 
 app.get('/testSync', function (req, res) {
     const testData = {
