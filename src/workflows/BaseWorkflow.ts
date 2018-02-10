@@ -1,15 +1,15 @@
 import {
     ControllerInterface,
-    WorkflowTreeTasks, Workflow,
+    WorkflowTreeTasks, Workflow, WorkflowErrorHandler,
     Task, TaskHash,
 } from '../index.d';
 
 export abstract class BaseWorkflow implements Workflow
 {
     public id : string;
-    protected onError : {(workflowId: string, err) : void};
+    protected onError : WorkflowErrorHandler;
 
-    protected constructor(onError : {(workflowId, err) : void})
+    protected constructor(onError : WorkflowErrorHandler)
     {
         if (onError == null) {
             this.onError = (workflowId, err) => null;

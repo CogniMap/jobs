@@ -135,11 +135,16 @@ export namespace Tasks
     }
 }
 
+export interface WorkflowErrorHandler 
+{
+    (workflowId : string, err): void;
+}
+
 export namespace Workflows
 {
     export class TreeWorkflow
     {
-        constructor(tasks : Tasks.TreeTask[], onError : {(err): void});
+        constructor(tasks : Tasks.TreeTask[], onError : WorkflowErrorHandler);
     }
 }
 

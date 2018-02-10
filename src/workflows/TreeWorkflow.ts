@@ -4,7 +4,7 @@ import { TaskWatcher } from '../backends/watcher';
 import { BaseWorkflow } from './BaseWorkflow';
 import {
     ControllerInterface,
-    WorkflowTreeTasks,
+    WorkflowTreeTasks, WorkflowErrorHandler,
     Tasks, TaskHash,
 } from '../index.d';
 import { getResultContext } from './context';
@@ -22,7 +22,7 @@ export class TreeWorkflow extends BaseWorkflow
 {
     private tasks : Tasks.TreeTask[];
 
-    public constructor(tasks, onError = null)
+    public constructor(tasks, onError : WorkflowErrorHandler = null)
     {
         super(onError);
         this.tasks = tasks;
