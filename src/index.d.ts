@@ -139,7 +139,7 @@ export namespace Workflows
 {
     export class TreeWorkflow
     {
-        constructor(tasks : Tasks.TreeTask[]);
+        constructor(tasks : Tasks.TreeTask[], onError : {(err): void});
     }
 }
 

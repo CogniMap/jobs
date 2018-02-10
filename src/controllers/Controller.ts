@@ -20,7 +20,7 @@ export class Controller implements ControllerInterface
      *
      * @param {string} workflowId
      * @param {string} taskPath
-     * @return Promise Resolve when the task has been executed
+     * @return Promise Resolve/Reject when the task has been executed
      */
     public executeOneTask(workflowId : string, taskPath : string, argument = null) : Promise<TaskHash>
     {
