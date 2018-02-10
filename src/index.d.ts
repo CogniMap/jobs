@@ -144,7 +144,7 @@ export namespace Workflows
 {
     export class TreeWorkflow
     {
-        constructor(tasks : Tasks.TreeTask[], onError : WorkflowErrorHandler);
+        constructor(tasks : Tasks.TreeTask[]);
     }
 }
 
