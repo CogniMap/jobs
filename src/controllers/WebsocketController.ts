@@ -8,7 +8,7 @@ import { Controller } from './Controller';
 import {
     TaskHash, Statuses, TaskError,
     Workflow, WorkflowHash, WorkflowStatus,
-    WebsocketControllerConfig,
+    WebsocketControllerConfig, ControllerConfiguration
 } from '../index.d';
 
 export class WebsocketController extends Controller
@@ -17,7 +17,7 @@ export class WebsocketController extends Controller
 
     public constructor(backend : Backend, config : WebsocketControllerConfig)
     {
-        super(backend, config);
+        super(backend, config as ControllerConfiguration);
 
         this.setupWebsockets(config.server);
     }
@@ -132,9 +132,11 @@ export class WebsocketController extends Controller
                                     ... err.payload
                                 } as any,
                             });
+                            self.onWorkflowError(workflowId, err.payload);
                             reject(err.payload);
                         })
                         .on('error', function (err) {
+                            self.onWorkflowError(workflowId, err);
                             Packets.Errors.executionError(self.io.sockets.in(workflowId), err);
                             reject(err);
                         });

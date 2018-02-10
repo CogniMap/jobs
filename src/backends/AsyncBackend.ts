@@ -112,7 +112,7 @@ export class AsyncBackend extends Backend implements BackendInterface
                 }
                 catch (e) {
                     // TODO return  ExecutionErrorType.CONTEXT_UPDATE
-                    console.log(e);
+                    console.log("Fail to update context", e);
                 }
             },
 

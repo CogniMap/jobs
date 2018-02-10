@@ -7,7 +7,7 @@ import { Database } from './database';
 import {
     BackendConfiguration, MysqlConfig, AsyncBackendConfiguration, SyncBackendConfiguration,
     ControllerConfiguration, WebsocketControllerConfig,
-    WorkflowInstance, WorkflowGenerator, WorkflowHash, Workflow,
+    WorkflowInstance, WorkflowGenerator,
 } from './index.d';
 import { update } from './immutability';
 import { WebsocketController } from './controllers/WebsocketController';
@@ -51,6 +51,8 @@ export class Jobs
             case Jobs.BACKEND_SYNC:
                 this.backend = new SyncBackend(backend.config as SyncBackendConfiguration);
                 break;
+            default:
+                throw new Error("Unknow backend : " + backend.type);
         }
 
         // Initialize controller
@@ -61,6 +63,8 @@ export class Jobs
             case Jobs.CONTROLLER_BASE:
                 this.controller = new Controller(this.backend, controller.config);
                 break;
+            default:
+                throw new Error("Unknow controller : " + controller.type);
         }
     }
 

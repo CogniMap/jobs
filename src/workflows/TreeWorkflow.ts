@@ -22,9 +22,9 @@ export class TreeWorkflow extends BaseWorkflow
 {
     private tasks : Tasks.TreeTask[];
 
-    public constructor(tasks, onError : WorkflowErrorHandler = null)
+    public constructor(tasks)
     {
-        super(onError);
+        super();
         this.tasks = tasks;
     }
 
@@ -164,7 +164,6 @@ export class TreeWorkflow extends BaseWorkflow
                               if (e === 'NoNextTask') {
                                   controller.finishWorkflow(self.id);
                               } else {
-                                  this.onError(this.id, e);
                                   return Promise.reject(e);
                               }
                           }

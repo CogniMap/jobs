@@ -7,16 +7,6 @@ import {
 export abstract class BaseWorkflow implements Workflow
 {
     public id : string;
-    protected onError : WorkflowErrorHandler;
-
-    protected constructor(onError : WorkflowErrorHandler)
-    {
-        if (onError == null) {
-            this.onError = (workflowId, err) => null;
-        } else {
-            this.onError = onError;
-        }
-    }
 
     public abstract getTask(path : string, baseContext,
                             getTaskHash : {(workflowId : string, taskPath : string) : Promise<TaskHash>}) : Promise<{

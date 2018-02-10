@@ -4,7 +4,7 @@
 
 export interface ControllerConfiguration
 {
-
+    onError ?: WorkflowErrorHandler;
 }
 
 export interface WebsocketControllerConfig
@@ -82,7 +82,7 @@ declare class Jobs
     public static BACKEND_SYNC : string;
 
     public static CONTROLLER_BASE : string;
-    public static CONTROLLER_WEBSOCKETS : string;
+    public static CONTROLLER_WEBSOCKET : string;
 
     public constructor(mysqlConfig : MysqlConfig, backend : {
         type : string,
@@ -202,7 +202,7 @@ export interface Workflow
     /**
      * Execute the whole workflow (until error)
      */
-    execute(controller : ControllerInterface, argument ? : any) : void;
+    execute(controller : ControllerInterface, argument ? : any) : Promise<any>;
 
     getTask(path : string, baseContext, getTaskHash : {(workflowId : string, taskPath : string) : Promise<TaskHash>});
 }

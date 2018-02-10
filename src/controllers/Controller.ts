@@ -1,6 +1,8 @@
-import { TaskError, TaskHash, WorkflowStatus, ControllerConfiguration, ControllerInterface } from '../index.d';
+import {
+    TaskError, TaskHash,
+    WorkflowStatus, WorkflowErrorHandler,
+    ControllerConfiguration, ControllerInterface } from '../index.d';
 import { Backend } from '../backends/Backend';
-import { TaskWatcher } from '../backends/watcher';
 
 
 /**
@@ -9,10 +11,12 @@ import { TaskWatcher } from '../backends/watcher';
 export class Controller implements ControllerInterface
 {
     protected backend : Backend;
+    protected onError : WorkflowErrorHandler;
 
     public constructor(backend : Backend, config : ControllerConfiguration)
     {
         this.backend = backend;
+        this.onError = config.onError;
     }
 
     /**
@@ -24,15 +28,20 @@ export class Controller implements ControllerInterface
      */
     public executeOneTask(workflowId : string, taskPath : string, argument = null) : Promise<TaskHash>
     {
+        let self = this;
         return new Promise((resolve, reject) => {
             this.backend.executeOneTask(workflowId, taskPath, argument)
                 .then(watcher => {
                     watcher
                         .on('complete', resolve)
                         .on('failed', function (err : TaskError) {
+                            self.onWorkflowError(workflowId, err.payload);
                             reject(err.payload);
                         })
-                        .on('error', reject);
+                        .on('error', (err) => {
+                            self.onWorkflowError(workflowId, err);
+                            reject(err);
+                        });
                 });
         });
     }
@@ -51,7 +60,11 @@ export class Controller implements ControllerInterface
         return this.backend.getWorkflow(workflowId)
                    .then(res => {
                        let {workflow, workflowHash} = res;
-                       return workflow.execute(self, argument);
+                       return workflow.execute(self, argument)
+                           .catch(err => {
+                               self.onWorkflowError(workflowId, err);
+                               return Promise.reject(err);
+                           })
                    });
     }
 
@@ -69,9 +82,30 @@ export class Controller implements ControllerInterface
         return this.backend.getWorkflow(workflowId)
             .then(({workflow, workflowHash}) => {
                 if (workflowHash.ephemeral) {
-                    return this.backend.deleteWorkflow(workflowId);
+                    return self.backend.deleteWorkflow(workflowId);
                 } else {
-                    return this.backend.setWorkflowStatus(workflowId, 'done' as WorkflowStatus);
+                    return self.backend.setWorkflowStatus(workflowId, 'done' as WorkflowStatus);
+                }
+            });
+    }
+
+    /**
+     * Call the onError callback, and delete the workflow if it is ephemeral.
+     *
+     * @param {string} workflowId
+     * @param err
+     */
+    protected onWorkflowError(workflowId : string, err)
+    {
+        if (this.onError != null) {
+            this.onError(workflowId, err);
+        }
+
+        let self = this;
+        return this.backend.getWorkflow(workflowId)
+            .then(({workflow, workflowHash}) => {
+                if (workflowHash.ephemeral) {
+                    return self.backend.deleteWorkflow(workflowId);
                 }
             });
     }
