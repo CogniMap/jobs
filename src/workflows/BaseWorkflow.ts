@@ -7,12 +7,12 @@ import {
 export abstract class BaseWorkflow implements Workflow
 {
     public id : string;
-    protected onError : {(err) : void};
+    protected onError : {(workflowId: string, err) : void};
 
-    protected constructor(onError : {(err) : void})
+    protected constructor(onError : {(workflowId, err) : void})
     {
         if (onError == null) {
-            this.onError = (err) => null;
+            this.onError = (workflowId, err) => null;
         } else {
             this.onError = onError;
         }
