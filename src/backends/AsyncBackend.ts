@@ -41,7 +41,8 @@ export class AsyncBackend extends Backend implements BackendInterface
         return this.generateWorkflow(workflowGenerator, workflowData, workflowId)
                    .then(workflow => {
                        let paths = workflow.getAllPaths();
-                       return this.redis.initWorkflow(workflowGenerator, workflowData, paths, workflowId, options.baseContext, options.ephemeral);
+                       return this.redis.initWorkflow(workflowGenerator, workflowData, paths, workflowId,
+                           options.baseContext, options.ephemeral);
                    });
     }
 
@@ -112,7 +113,7 @@ export class AsyncBackend extends Backend implements BackendInterface
                 }
                 catch (e) {
                     // TODO return  ExecutionErrorType.CONTEXT_UPDATE
-                    console.log("Fail to update context", e);
+                    console.log('Fail to update context', e);
                 }
             },
 
@@ -135,7 +136,15 @@ export class AsyncBackend extends Backend implements BackendInterface
                                if (task.condition != null) {
                                    if (!task.condition(context)) {
                                        // Bypass this task, and mark it as executed
-                                       return {message: 'Task skipped'}; // The "task result"
+                                       let taskHash = {
+                                           status: 'ok' as TaskStatus,
+                                           argument: null,
+                                           body: 'Task skipped',
+                                           contextUpdaters,
+                                           context,
+                                           executionTime: currentDate.getTime(),
+                                       };
+                                       return self.redis.setTask(workflowId, path, taskHash);
                                    }
                                }
 
@@ -159,7 +168,27 @@ export class AsyncBackend extends Backend implements BackendInterface
                                                       },
                                                   });
                                               })
-                                              .then(taskResult => ({taskResult, task, callingContext}));
+                                              .then((taskResult) => {
+                                                  // Middleware to perform operations with the task result
+                                                  if (task.onComplete != null) {
+                                                      console.log(task.onComplete);
+                                                  }
+
+                                                  if (task.debug != null) {
+                                                      task.debug(taskResult, factory.context);
+                                                  }
+
+                                                  // Update the task hash
+                                                  let taskHash = {
+                                                      status: 'ok' as TaskStatus,
+                                                      argument,
+                                                      context: callingContext,
+                                                      body: taskResult || null,
+                                                      contextUpdaters,
+                                                      executionTime: currentDate.getTime(),
+                                                  };
+                                                  return self.redis.setTask(workflowId, path, taskHash);
+                                              });
                                }
                                catch (err) {
                                    // Direct exception in the task callback
@@ -172,27 +201,6 @@ export class AsyncBackend extends Backend implements BackendInterface
                                        },
                                    });
                                }
-                           })
-                           .then(({taskResult, task, callingContext}) => {
-                               // Middleware to perform operations with the task result
-                               if (task.onComplete != null) {
-                                   console.log(task.onComplete);
-                               }
-
-                               if (task.debug != null) {
-                                   task.debug(taskResult, factory.context);
-                               }
-
-                               // Update the task hash
-                               let taskHash = {
-                                   status: 'ok' as TaskStatus,
-                                   argument,
-                                   context: callingContext,
-                                   body: taskResult || null,
-                                   contextUpdaters,
-                                   executionTime: currentDate.getTime(),
-                               };
-                               return self.redis.setTask(workflowId, path, taskHash);
                            });
                    });
     }
@@ -256,13 +264,13 @@ export class AsyncBackend extends Backend implements BackendInterface
     public deleteWorkflow(workflowId : string) : Promise<{}>
     {
         return this.getWorkflow(workflowId)
-            .then(({workflow, workflowHash}) => {
-                let paths = workflow.getAllPaths();
-                return Promise.all([
-                    this.redis.deleteWorkflow(workflowId),
-                    this.redis.deleteTasks(workflowId, paths)
-                ]);
-            });
+                   .then(({workflow, workflowHash}) => {
+                       let paths = workflow.getAllPaths();
+                       return Promise.all([
+                           this.redis.deleteWorkflow(workflowId),
+                           this.redis.deleteTasks(workflowId, paths),
+                       ]);
+                   });
     }
 }
 

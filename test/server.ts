@@ -30,7 +30,7 @@ let webSocketJobs = new Jobs(mysqlConfig, {
     config: {
         server,
     } as WebsocketControllerConfig,
-});
+} as any);
 
 let debugJobs = new Jobs(mysqlConfig, {
     type: Jobs.BACKEND_SYNC,
@@ -83,21 +83,28 @@ const generator1 = (data) => {
                     setTimeout(() => {
                         console.log('... done');
                         resolve('Nothing');
-                    }, 3000);
+                    }, 1000);
                 });
             },
             children: [],
         }, {
             name: 'task4',
+            description: 'Skipped task',
+            execute: (arg, factory : Factory) => {
+                return Promise.reject('Should not happened');
+            },
+            children: [],
+            condition: (context) => false,
+        }, {
+            name: 'task5',
             description: 'Returns a Promise.reject',
             execute: (arg, factory : Factory) => {
                 console.log('task4 (will fail)');
                 return Promise.reject('Error');
             },
             children: [],
-            condition: (context) => false,
         }, {
-            name: 'task5',
+            name: 'task6',
             description: 'Throws an Error',
             execute: (arg, factory : Factory) => {
                 throw new Error('Error');
