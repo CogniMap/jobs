@@ -108,6 +108,8 @@ declare class Jobs
     public getAllWorkflows() : Promise<WorkflowInstance[]>;
 
     public executeOneTask(workflowId : string, taskPath : string, callerSocket ? : any, argument ? : any)
+    
+    public destroyWorkflow(workflowId : string);
 }
 
 

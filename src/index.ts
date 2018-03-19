@@ -154,4 +154,8 @@ export class Jobs
     {
         return this.database.Workflows.findAll();
     }
+
+    public destroyWorkflow(workflowId : string) {
+        this.backend.deleteWorkflow(workflowId);
+    }
 }
