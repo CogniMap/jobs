@@ -4,7 +4,7 @@
   "license": "GPL-3",
   "description": "Scheduler asynchronous of tasks workflows, that allow step by step execution .",
   "scripts": {
-    "postinstall": "$(npm bin)/tsc"
+    "postinstall": "tsc"
   },
   "devDependencies": {
     "@types/node": "^8.0.7",
@@ -25,5 +25,9 @@
     "uniqid": "^4.1.1"
   },
   "main": "./dist/index.js",
-  "types": "./src/index.d.ts"
+  "types": "./src/index.d.ts",
+  "files": [
+    "dist",
+    "src/index.d.ts"
+  ]
 }
