@@ -1,11 +1,11 @@
 {
   "name": "jobs",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "license": "GPL-3",
   "description": "Scheduler asynchronous of tasks workflows, that allow step by step execution .",
   "scripts": {
     "build": "tsc",
-    "postinstall": "npm run build"
+    "prepare": "npm run build"
   },
   "devDependencies": {
     "@types/node": "^8.0.7",

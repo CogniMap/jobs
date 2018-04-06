@@ -1,0 +1,6 @@
+src/*
+!src/index.d.ts
+
+.idea
+
+tsconfig.json
