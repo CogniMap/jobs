@@ -1,6 +1,6 @@
 {
   "name": "jobs",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "GPL-3",
   "description": "Scheduler asynchronous of tasks workflows, that allow step by step execution .",
   "scripts": {
@@ -8,7 +8,7 @@
     "prepare": "npm run build"
   },
   "devDependencies": {
-    "@types/node": "^8.0.7",
+    "@types/node": "^10.3.0",
     "body-parser": "^1.18.2",
     "express": "^4.16.2",
     "express-handlebars": "^3.0.0",
@@ -23,7 +23,7 @@
     "redis": "^2.8.0",
     "sequelize": "^4.28.5",
     "socket.io": "^2.0.3",
-    "uniqid": "^4.1.1"
+    "uniqid": "^5.0.2"
   },
   "main": "./dist/index.js",
   "types": "./src/index.d.ts",
