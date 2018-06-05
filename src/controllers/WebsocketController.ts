@@ -19,7 +19,7 @@ export class WebsocketController extends Controller
     {
         super(backend, config as ControllerConfiguration);
 
-        this.setupWebsockets(config.server);
+        this.setupWebsockets(config.app);
     }
 
     /**
@@ -42,11 +42,14 @@ export class WebsocketController extends Controller
      *     for all tasks of the workflow.
      *     Cf setTasksStatuses() for more details
      *  - workflowDescription(tasks) Send a WorkflowTasks to the client
+     *
+     *  @param app An express-like app
      */
-    public setupWebsockets(server)
+    public setupWebsockets(app)
     {
         let self = this;
-        this.io = socketio.listen(server);
+        this.io = socketio(app);
+        //this.io = socketio.listen(server);
 
         this.io.on('connection', function (socket) {
                 Packets.hello(socket);

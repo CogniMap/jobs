@@ -9,7 +9,7 @@ export interface ControllerConfiguration
 
 export interface WebsocketControllerConfig
 {
-    server : any;
+    app: any;
 }
 
 export interface ControllerInterface

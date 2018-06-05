@@ -1,10 +1,11 @@
 {
   "name": "jobs",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "license": "GPL-3",
   "description": "Scheduler asynchronous of tasks workflows, that allow step by step execution .",
   "scripts": {
     "build": "tsc",
+    "build:watch": "tsc --watch",
     "build-test": "cd test && tsc",
     "build-test:watch": "cd test && tsc --watch",
     "start-test": "cd test/dist/test && nodemon server.js $JOBS_REACT/tests",
