@@ -19,7 +19,7 @@ export class WebsocketController extends Controller
     {
         super(backend, config as ControllerConfiguration);
 
-        this.setupWebsockets(config.app);
+        this.setupWebsockets(config.server);
     }
 
     /**
@@ -45,11 +45,15 @@ export class WebsocketController extends Controller
      *
      *  @param app An express-like app
      */
-    public setupWebsockets(app)
+    public setupWebsockets(server)
     {
         let self = this;
-        this.io = socketio(app);
-        //this.io = socketio.listen(server);
+        this.io = socketio(server, {
+            serveClient: false,
+            pingInterval: 10000,
+            pingTimeout: 5000,
+            cookie: false
+        });
 
         this.io.on('connection', function (socket) {
                 Packets.hello(socket);

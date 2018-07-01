@@ -9,7 +9,7 @@ export interface ControllerConfiguration
 
 export interface WebsocketControllerConfig
 {
-    app: any;
+    server: any;
 }
 
 export interface ControllerInterface
@@ -45,10 +45,10 @@ export interface AsyncBackendConfiguration extends BackendConfiguration
     redis : RedisConfig;
 }
 
-interface Factory
+interface Factory<T>
 {
-    context : any;
-    previousContext : any;
+    context : T;
+    previousContext : T;
 
     updateContext(updater : any) : void;
 
@@ -184,7 +184,7 @@ export interface Task
      * Do not edit the context directly !
      * Use the udpateContext() function of the factory.
      */
-    execute ? : {(arg, factory : Factory) : Promise<any>;};
+    execute ? : {(arg, factory : Factory<any>) : Promise<any>;};
 }
 
 export interface Workflow
