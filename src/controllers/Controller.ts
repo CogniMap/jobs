@@ -35,11 +35,11 @@ export class Controller implements ControllerInterface
                     watcher
                         .on('complete', resolve)
                         .on('failed', function (err : TaskError) {
-                            self.onWorkflowError(workflowId, err.payload);
+                            self.onWorkflowError(workflowId, taskPath, err.payload);
                             reject(err.payload);
                         })
                         .on('error', (err) => {
-                            self.onWorkflowError(workflowId, err);
+                            self.onWorkflowError(workflowId, taskPath, err);
                             reject(err);
                         });
                 });
@@ -61,8 +61,8 @@ export class Controller implements ControllerInterface
                    .then(res => {
                        let {workflow, workflowHash} = res;
                        return workflow.execute(self, argument)
-                           .catch(err => {
-                               self.onWorkflowError(workflowId, err);
+                           .catch(({err, taskPath}) => {
+                               self.onWorkflowError(workflowId, taskPath, err);
                                return Promise.reject(err);
                            })
                    });
@@ -95,10 +95,10 @@ export class Controller implements ControllerInterface
      * @param {string} workflowId
      * @param err
      */
-    protected onWorkflowError(workflowId : string, err)
+    protected onWorkflowError(workflowId : string, taskPath: string, err)
     {
         if (this.onError != null) {
-            this.onError(workflowId, err);
+            this.onError(workflowId, taskPath, err);
         }
 
         let self = this;

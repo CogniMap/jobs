@@ -139,7 +139,7 @@ export namespace Tasks
 
 export interface WorkflowErrorHandler 
 {
-    (workflowId : string, err): void;
+    (workflowId : string, taskPath: string, err): void;
 }
 
 export namespace Workflows

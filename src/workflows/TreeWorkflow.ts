@@ -164,7 +164,10 @@ export class TreeWorkflow extends BaseWorkflow
                               if (e === 'NoNextTask') {
                                   controller.finishWorkflow(self.id);
                               } else {
-                                  return Promise.reject(e);
+                                  return Promise.reject({
+                                      err: e,
+                                      taskPath: path
+                                  });
                               }
                           }
                       });

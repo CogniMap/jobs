@@ -139,11 +139,11 @@ export class WebsocketController extends Controller
                                     ... err.payload
                                 } as any,
                             });
-                            self.onWorkflowError(workflowId, err.payload);
+                            self.onWorkflowError(workflowId, taskPath, err.payload);
                             reject(err.payload);
                         })
                         .on('error', function (err) {
-                            self.onWorkflowError(workflowId, err);
+                            self.onWorkflowError(workflowId, taskPath, err);
                             Packets.Errors.executionError(self.io.sockets.in(workflowId), err);
                             reject(err);
                         });
