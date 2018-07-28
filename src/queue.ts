@@ -4,7 +4,7 @@ import {
     RedisConfig, BackendInterface,
 } from './index.d';
 import { ExecutionErrorType } from './common';
-import { Redis } from './redis';
+import { Redis } from './storages/Redis';
 import { reduce } from './objects';
 import { TaskWatcher } from './backends/watcher';
 import { AsyncBackend } from './backends/AsyncBackend';

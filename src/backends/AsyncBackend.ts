@@ -4,7 +4,7 @@ import {
     Statuses, TaskHash, TaskStatus, WorkflowStatus,
     BackendInterface, AsyncBackendConfiguration,
 } from '../index.d';
-import { Redis } from '../redis';
+import { Redis } from '../storages/Redis';
 import { ExecutionErrorType } from '../common';
 
 const Promise = require('bluebird');
