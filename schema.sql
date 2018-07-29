@@ -1,13 +1,15 @@
 -- phpMyAdmin SQL Dump
--- version 4.6.4
+-- version 4.8.0.1
 -- https://www.phpmyadmin.net/
 --
 -- Host: db
--- Generation Time: Dec 17, 2017 at 10:23 AM
+-- Generation Time: Jul 29, 2018 at 04:00 PM
 -- Server version: 5.7.17
--- PHP Version: 5.6.26
+-- PHP Version: 7.2.4
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+SET AUTOCOMMIT = 0;
+START TRANSACTION;
 SET time_zone = "+00:00";
 
 
@@ -29,6 +31,7 @@ SET time_zone = "+00:00";
 CREATE TABLE `workflows` (
   `id` int(11) NOT NULL,
   `workflow_id` varchar(50) NOT NULL,
+  `name` varchar(255) NOT NULL,
   `created` datetime NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
@@ -51,6 +54,8 @@ ALTER TABLE `workflows`
 --
 ALTER TABLE `workflows`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+COMMIT;
+
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;

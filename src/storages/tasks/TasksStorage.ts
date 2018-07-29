@@ -1,10 +1,16 @@
 import {
     WorkflowHash, TaskHash,
     Statuses, TaskStatus, WorkflowStatus,
-} from '../index.d';
-import {update} from '../immutability';
+} from '../../index.d';
+import {update} from '../../immutability';
 
-export abstract class Storage {
+/**
+ * Store key pairs objects.
+ *
+ * An object is indexed by strings. Its values can be strings, numbers, or objects.
+ */
+export abstract class TasksStorage {
+
     // Backend implementation
 
     abstract set(key: string, data);
@@ -27,7 +33,6 @@ export abstract class Storage {
     abstract bulkDelete(keys: string[]);
 
     // Application logic
-
 
     /********************************************************
      * Workflows
@@ -131,17 +136,15 @@ export abstract class Storage {
      */
     public getTasksStatuses(paths: string[], workflowId: string): Promise<Statuses> {
         let self = this;
-        return new Promise((resolve, reject) => {
-            let keys = paths.map(path => {
-                return self.getTaskHash(workflowId, path);
+        let keys = paths.map(path => {
+            return self.getTaskHash(workflowId, path);
+        });
+        return this.bulkGet(keys).then(replies => {
+            let statuses = {};
+            paths.map((path, i) => {
+                statuses[path] = replies[i];
             });
-            return this.bulkGet(keys).then(replies => {
-                let statuses = {};
-                paths.map((path, i) => {
-                    statuses[path] = replies[i];
-                });
-                return statuses;
-            });
+            return statuses;
         });
     }
 

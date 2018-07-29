@@ -3,16 +3,17 @@ import { Controller } from './controllers/Controller';
 const uniqid = require('uniqid');
 
 import { Backend } from './backends/Backend';
-import { Database } from './database';
 import {
-    BackendConfiguration, MysqlConfig, AsyncBackendConfiguration, SyncBackendConfiguration,
+    IndexStorageConfig,
+    BackendConfiguration, AsyncBackendConfiguration, SyncBackendConfiguration,
     ControllerConfiguration, WebsocketControllerConfig,
     WorkflowInstance, WorkflowGenerator,
 } from './index.d';
-import { update } from './immutability';
 import { WebsocketController } from './controllers/WebsocketController';
 import { AsyncBackend } from './backends/AsyncBackend';
 import { SyncBackend } from './backends/SyncBackend';
+import {IndexStorage} from "./storages/index/IndexStorage";
+import {getIndexStorageInstance} from "./storages/factory";
 
 export const Workflows = require('./workflows');
 
@@ -21,7 +22,7 @@ export const Workflows = require('./workflows');
  */
 export class Jobs
 {
-    private database;
+    private database : IndexStorage;
     private backend : Backend;
     private controller : Controller;
 
@@ -31,7 +32,7 @@ export class Jobs
     public static CONTROLLER_BASE = 'controller_base';
     public static CONTROLLER_WEBSOCKET = 'controller_websocket';
 
-    public constructor(mysqlConfig : MysqlConfig, backend : {
+    public constructor(indexStorage : IndexStorageConfig, backend : {
         type : string,
         config ? : BackendConfiguration
     }, controller ? : {
@@ -39,7 +40,7 @@ export class Jobs
         config ? : ControllerConfiguration
     })
     {
-        this.database = new Database(mysqlConfig);
+        this.database = getIndexStorageInstance(indexStorage);
         backend = Object.assign({}, {config: {}}, backend);
         controller = Object.assign({}, {config: {}, type: Jobs.CONTROLLER_BASE}, controller || {});
 
@@ -91,7 +92,7 @@ export class Jobs
             name: '',
             generator: workflowGenerator,
         }, options);
-        return this.database.Workflows.create({
+        return this.database.create({
             id: workflowId,
             name: options.name,
         })
@@ -152,7 +153,7 @@ export class Jobs
      */
     public getAllWorkflows() : Promise<WorkflowInstance[]>
     {
-        return this.database.Workflows.findAll();
+        return this.database.getAll();
     }
 
     public destroyWorkflow(workflowId : string) {

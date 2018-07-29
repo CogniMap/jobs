@@ -89,6 +89,13 @@ Also store logs under the following list :
 logs_<workflowId>_<taskPath>: string[]
 ```
 
+## TasksStorage
+
+The library support DynamoDB and Redis storages, for persistent storage (tasks results etc).
+
+It also use a redis database for the jobs queue. This database may present on the same instance (not
+necesseraly duplicated or persistent).
+
 ## Controllers
 
 Entry points to execute or schedule tasks are in the main Jobs class. 

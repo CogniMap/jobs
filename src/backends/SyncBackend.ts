@@ -13,7 +13,7 @@ import { update } from '../immutability';
 import { Backend } from './Backend';
 
 /**
- * This backend store all workflow/tasks hashes in its attributes (ie in-memory, don't use persistent backend).
+ * This backend store all workflow/tasks hashes in its attributes (ie in-memory, don't use tasks backend).
  */
 export class SyncBackend extends Backend implements BackendInterface
 {

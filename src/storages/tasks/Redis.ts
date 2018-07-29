@@ -1,7 +1,10 @@
-const RedisClass = require('Redis');
+const RedisClass = require('redis');
 const Promise = require('bluebird');
 Promise.promisifyAll(RedisClass.RedisClient.prototype);
 Promise.promisifyAll(RedisClass.Multi.prototype);
+
+import {RedisConfig} from '../../index.d';
+import {TasksStorage} from './TasksStorage';
 
 /**
  * Interface to the redis client.
@@ -9,10 +12,10 @@ Promise.promisifyAll(RedisClass.Multi.prototype);
  *
  * Also promisify all functions.
  */
-export class Redis extends Storage {
+export class Redis extends TasksStorage {
     private redis = null;
 
-    public constructor(redisConfig) {
+    public constructor(redisConfig : RedisConfig) {
         super();
         redisConfig = Object.assign({}, {
             port: 6379,
@@ -27,7 +30,7 @@ export class Redis extends Storage {
         return this.redis.hmsetAsync(key, this.redify(data));
     }
 
-    public bulkdSet(values: {
+    public bulkSet(values: {
         key: string,
         data: any
     }[])
@@ -36,7 +39,9 @@ export class Redis extends Storage {
         for (let value of values) {
             query.hmset(value.key, this.redify(value.data));
         }
-        return query.execAsync();
+        return query.execAsync().then(res => {
+            return res;
+        })
     }
 
     public setField(key: string, field, data) {
@@ -47,8 +52,12 @@ export class Redis extends Storage {
         let self = this;
         return this.redis.hgetallAsync(key)
             .then(hash => {
+                console.log('get', key, hash);
                 return self.parse(hash);
-            });
+            }).catch(err => {
+                console.log(err);
+                return Promise.reject(err);
+            })
     }
 
     public getField(key: string, field: string) {
@@ -81,7 +90,7 @@ export class Redis extends Storage {
         return this.redis.delAsync(key);
     }
 
-    public bulkDelete(keys: string) {
+    public bulkDelete(keys: string[]) {
 
         let query = this.redis.multi();
         for (let key of keys) {

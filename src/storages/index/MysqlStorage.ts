@@ -1,14 +1,14 @@
 const Sequelize = require('sequelize');
 
-import { MysqlConfig } from './index.d';
+import {IndexStorage} from "./IndexStorage";
+import {MysqlConfig} from '../../index.d';
 
-export class Database
-{
+export class MysqlStorage extends IndexStorage {
     private connection;
     private Workflows;
 
-    public constructor(config : MysqlConfig)
-    {
+    public constructor(config: MysqlConfig) {
+        super();
         let port = config.port || 3306;
         let database = config.database || 'jobs';
         this.connection = new Sequelize(
@@ -33,10 +33,6 @@ export class Database
                 type: Sequelize.STRING,
                 limit: 250
             },
-            generator: {
-                type: Sequelize.STRING,
-                limit: 50
-            },
             createdAt: Sequelize.DATE,
             updatedAt: Sequelize.DATE,
         }, {
@@ -44,5 +40,13 @@ export class Database
         });
 
         this.connection.sync();
+    }
+
+    public getAll() {
+        return this.Workflows.findAll();
+    }
+
+    public create(workflow) {
+        return this.Workflows.create(workflow);
     }
 }
