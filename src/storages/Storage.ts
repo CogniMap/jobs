@@ -1,15 +1,15 @@
 import {
     WorkflowHash, TaskHash,
     Statuses, TaskStatus, WorkflowStatus,
-} from '../../index.d';
-import {update} from '../../immutability';
+} from '../index.d';
+import {update} from '../immutability';
 
 /**
  * Store key pairs objects.
  *
  * An object is indexed by strings. Its values can be strings, numbers, or objects.
  */
-export abstract class TasksStorage {
+export abstract class Storage {
 
     // Backend implementation
 
@@ -32,18 +32,23 @@ export abstract class TasksStorage {
 
     abstract bulkDelete(keys: string[]);
 
+    abstract deleteByField(field : string, data);
+
+    abstract getAllWorkflowsUids() : Promise<string[]>;
+
     // Application logic
 
     /********************************************************
      * Workflows
      *******************************************************/
 
-    public initWorkflow(workflowGenerator: string, generatorData: any, paths: string[], workflowId: string,
+    public initWorkflow(realm : string, workflowGenerator: string, generatorData: any, paths: string[], workflowId: string,
                         baseContext, ephemeral: boolean) {
         let values = [
             {
                 key: 'workflow_' + workflowId,
                 data: {
+                    realm,
                     status: 'working' as WorkflowStatus,
 
                     generator: workflowGenerator,
@@ -58,6 +63,7 @@ export abstract class TasksStorage {
             values.push({
                 key: 'workflowTask_' + workflowId + '_' + path,
                 data: {
+                    realm,
                     status: 'inactive',
                     body: null,
                     argument: null,

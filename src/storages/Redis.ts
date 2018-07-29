@@ -3,8 +3,8 @@ const Promise = require('bluebird');
 Promise.promisifyAll(RedisClass.RedisClient.prototype);
 Promise.promisifyAll(RedisClass.Multi.prototype);
 
-import {RedisConfig} from '../../index.d';
-import {TasksStorage} from './TasksStorage';
+import {RedisConfig} from '../index.d';
+import {Storage} from './Storage';
 
 /**
  * Interface to the redis client.
@@ -12,7 +12,7 @@ import {TasksStorage} from './TasksStorage';
  *
  * Also promisify all functions.
  */
-export class Redis extends TasksStorage {
+export class Redis extends Storage {
     private redis = null;
 
     public constructor(redisConfig : RedisConfig) {
@@ -97,6 +97,14 @@ export class Redis extends TasksStorage {
             query.del(key);
         }
         return query.execAsync();
+    }
+
+    public deleteByField(field : string, data) {
+        return Promise.reject("deleteByField not implemented for Redis");
+    }
+
+    public getAllWorkflowsUids() {
+        return Promise.reject("getAllWorkflowsUids not implemented for Redis");
     }
 
     /********************************************************

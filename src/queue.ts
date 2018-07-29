@@ -4,7 +4,7 @@ import {
     RedisConfig, BackendInterface,
 } from './index.d';
 import { ExecutionErrorType } from './common';
-import { TasksStorage} from './storages/tasks/TasksStorage';
+import { Storage} from './storages/Storage';
 import { reduce } from './objects';
 import { TaskWatcher } from './backends/watcher';
 import { AsyncBackend } from './backends/AsyncBackend';
@@ -38,7 +38,7 @@ export class Queue
 {
     private queue = null;
     private backend : AsyncBackend;
-    private storage : TasksStorage = null;
+    private storage : Storage = null;
 
     /**
      * We use a WebSocket server to dispatch in real time the jobs progression (and logs).

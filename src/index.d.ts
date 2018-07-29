@@ -22,34 +22,16 @@ export interface ControllerInterface {
  * Storages
  ******************************************************************************/
 
-export interface TasksStorageConfig {
+export interface StorageConfig {
     type: "redis" | "dynamodb";
 }
 
-export interface RedisConfig extends TasksStorageConfig {
+export interface RedisConfig extends StorageConfig {
     host: string;
     port?: number;
 }
 
-export interface DynamodbTasksConfig extends TasksStorageConfig {
-    region: string;
-    tableName: string;
-}
-
-export interface MysqlConfig extends IndexStorageConfig {
-    host: string;
-    port?: number;
-    username: string;
-    password: string;
-    database?: string;
-}
-
-export interface IndexStorageConfig
-{
-    type: "mysql" | "dynamodb";
-}
-
-export interface DynamodbIndexConfig extends IndexStorageConfig {
+export interface DynamodbConfig extends StorageConfig {
     region: string;
     tableName: string;
 }
@@ -59,14 +41,14 @@ export interface DynamodbIndexConfig extends IndexStorageConfig {
  ******************************************************************************/
 
 export interface BackendConfiguration {
-    tasksStorage: TasksStorageConfig;
+    tasksStorage: StorageConfig;
     redis: {      // For the queue
         host: string;
         port?: number;
     };
 }
 
-export interface DynamodbTasksConfig extends TasksStorageConfig {
+export interface DynamodbTasksConfig extends StorageConfig {
     tableName: string;
 }
 
@@ -103,7 +85,7 @@ declare class Jobs {
     public static CONTROLLER_BASE: string;
     public static CONTROLLER_WEBSOCKET: string;
 
-    public constructor(indexStorage: IndexStorageConfig, backend: {
+    public constructor(backend: {
         type: string,
         config: BackendConfiguration
     }, controller: {
@@ -111,7 +93,7 @@ declare class Jobs {
         config: ControllerConfiguration
     });
 
-    public createWorkflowInstance(workflowGenerator: string, workflowData: any, options ?: {
+    public createWorkflowInstance(realm: string, workflowGenerator: string, workflowData: any, options ?: {
         baseContext?: any,
         ephemeral?: boolean,
         execute?: boolean,
@@ -129,6 +111,8 @@ declare class Jobs {
     public executeOneTask(workflowId: string, taskPath: string, callerSocket ?: any, argument ?: any)
 
     public destroyWorkflow(workflowId: string);
+
+    public destroyWorkflowsByRealm(realm : string);
 }
 
 
@@ -238,6 +222,8 @@ export interface WorkflowGenerator {
 export interface WorkflowHash {
     status: WorkflowStatus;
 
+    realm: string;
+
     baseContext: any;
     ephemeral: boolean;
 
@@ -249,6 +235,8 @@ export interface WorkflowHash {
  * The trace of a task execution, for a given workflow.
  */
 export interface TaskHash {
+    realm: string;
+
     // Result
     status: TaskStatus;
     body: any;

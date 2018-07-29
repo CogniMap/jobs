@@ -1,18 +1,18 @@
 const AWS = require('aws-sdk');
 
-import {DynamodbTasksConfig} from '../../index.d';
-import {TasksStorage} from './TasksStorage';
+import {DynamodbConfig} from '../index.d';
+import {Storage} from './Storage';
 
 /**
  * Jsonify values. Hence dynamodb items only contain string values
  *
  * Primary key of items is the attribute "Key".
  */
-export class DynamoDb extends TasksStorage {
+export class DynamoDb extends Storage {
     private tableName: string;
     private dynamodb;
 
-    public constructor(dynamodbConfig: DynamodbTasksConfig) {
+    public constructor(dynamodbConfig: DynamodbConfig) {
         super();
         this.dynamodb = new AWS.DynamoDB({
             apiVersion: '2012-08-10',
@@ -130,6 +130,48 @@ export class DynamoDb extends TasksStorage {
                     }
                 }))
             }
+        }).promise();
+    }
+
+    public deleteByField(field: string, data) {
+        let self = this;
+        let value = JSON.stringify(data);
+
+        // First, find matching items
+        return this.dynamodb.scan({
+            ExpressionAttributeValues: {
+                ":a": {
+                    S: value
+                }
+            },
+            FilterExpression: field + "= :a",
+            TableName: this.tableName
+        }).promise().then(result => {
+            let keys = result.Items.map(item => {
+                return item.Key.S;
+            });
+            return self.bulkDelete(keys);
+        });
+    }
+
+    public getAllWorkflowsUids() {
+        return this.dynamodb.scan({
+            ExpressionAttributeNames:{
+                "#key": "key"
+            },
+            ExpressionAttributeValues: {
+                ":a": {
+                    S: "workflow_"
+                }
+            },
+            FilterExpression: "begins_with(#key, :a)",
+            TableName: this.tableName
+        }).promise().then(result => {
+            let items = result.Items;
+            return items.map(item => {
+                let name = item.Key.S;
+                return name.split('_')[1];
+            })
         })
     }
 

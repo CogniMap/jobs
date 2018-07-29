@@ -1,4 +1,5 @@
 const Express = require('express');
+const uuidv4 = require('uuid/v4');
 const http = require('http');
 const exphbs = require('express-handlebars');
 const bodyParser = require('body-parser');
@@ -6,7 +7,7 @@ const intersection = require('lodash/intersection');
 
 import {Jobs} from '../src/index';
 import {TreeWorkflow} from '../src/workflows/TreeWorkflow';
-import {MysqlConfig, Factory, WebsocketControllerConfig, RedisConfig} from '../src/index.d';
+import {Factory, WebsocketControllerConfig, RedisConfig} from '../src/index.d';
 
 
 /**
@@ -17,13 +18,6 @@ import {MysqlConfig, Factory, WebsocketControllerConfig, RedisConfig} from '../s
 
 const app = Express();
 let server = http.Server(app);
-const mysqlConfig = {
-    type: 'mysql',
-    host: '0.0.0.0',
-    port: 3305,
-    username: 'admin',
-    password: 'password',
-} as MysqlConfig;
 const redisConfig = {
     host: '0.0.0.0',
     port: 6380,
@@ -37,7 +31,7 @@ const dynamodbConfig = {
 
 const storageType = process.argv[2]; // "aws" or "redis"
 
-let webSocketJobs = new Jobs(mysqlConfig, {
+let webSocketJobs = new Jobs({
     type: Jobs.BACKEND_ASYNC,
     config: {
         redis: redisConfig,
@@ -53,7 +47,7 @@ let webSocketJobs = new Jobs(mysqlConfig, {
     } as WebsocketControllerConfig,
 } as any);
 
-let debugJobs = new Jobs(mysqlConfig, {
+let debugJobs = new Jobs({
     type: Jobs.BACKEND_SYNC,
 }, {
     type: Jobs.CONTROLLER_BASE,
@@ -172,16 +166,17 @@ app.get('/', function (req, res) {
     const testData = {
         payload: 'test',
     };
+    let realm = uuidv4();
     Promise.all([
         // Single workflow test
-        webSocketJobs.createWorkflowInstance('test1', testData, {name: 'test_workflow1'}),
+        webSocketJobs.createWorkflowInstance(realm, 'test1', testData, {name: 'test_workflow1'}),
 
         // Multi worklfows test
-        webSocketJobs.createWorkflowInstance('test2', testData, {
+        webSocketJobs.createWorkflowInstance(realm, 'test2', testData, {
             name: 'test_workflow2',
             ephemeral: true,
         }),
-        webSocketJobs.createWorkflowInstance('test2', testData, {
+        webSocketJobs.createWorkflowInstance(realm, 'test2', testData, {
             name: 'test_workflow3',
             ephemeral: true,
         }),
@@ -189,6 +184,7 @@ app.get('/', function (req, res) {
 
         .then(workflowIds => {
             res.render('../../../views/home', {
+                realm,
                 singleWorkflowId: workflowIds[0],
                 multiWorkflowIds: JSON.stringify([workflowIds[1], workflowIds[2]]),
                 awsWorkflowId: workflowIds[3]
@@ -236,10 +232,22 @@ app.post('/executeAllTasksMulti', bodyParser.json(), function (req, res) {
 app.post('/hasWorkflows', bodyParser.json(), function (req, res) {
     let workflowIds = req.body.workflowIds;
     webSocketJobs.getAllWorkflows()
-        .then(allWorkflows => {
-            let allWorkflowIds = allWorkflows.map(workflowInstance => workflowInstance.id);
+        .then(allWorkflowsIds => {
             res.json({
-                existing: intersection(workflowIds, allWorkflowIds)
+                existing: intersection(workflowIds, allWorkflowsIds)
+            });
+        });
+});
+
+/**
+ * Delete workflows by realm
+ */
+app.post('/deleteByRealm', bodyParser.json(), function (req, res) {
+    let realm = req.body.realm;
+    webSocketJobs.destroyWorkflowsByRealm(realm)
+        .then(() => {
+            res.json({
+                result: 'ok'
             });
         });
 });
@@ -248,14 +256,21 @@ app.get('/testSync', function (req, res) {
     const testData = {
         payload: 'test',
     };
-    debugJobs.createWorkflowInstance('test', testData, {name: 'test_workflow'})
+    let realm = uuidv4();
+    debugJobs.createWorkflowInstance(realm, 'test', testData, {name: 'test_workflow'})
         .then(workflowId => {
             debugJobs.executeAllTasks(workflowId)
                 .then(() => {
-                    res.json({result: 'ok (resolved)'});
+                    res.json({
+                        result: 'ok (resolved)',
+                        realm,
+                    });
                 })
                 .catch(() => {
-                    res.json({result: 'ok (rejected)'});
+                    res.json({
+                        result: 'ok (rejected)',
+                        realm,
+                    });
                 });
         });
 });

@@ -89,7 +89,7 @@ Also store logs under the following list :
 logs_<workflowId>_<taskPath>: string[]
 ```
 
-## TasksStorage
+## Storage
 
 The library support DynamoDB and Redis storages, for persistent storage (tasks results etc).
 

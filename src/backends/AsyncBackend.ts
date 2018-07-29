@@ -12,7 +12,7 @@ import { ExecutionErrorType } from '../common';
 import { update } from '../immutability';
 import { Backend } from './Backend';
 import { TaskWatcher } from './watcher';
-import {TasksStorage} from '../storages/tasks/TasksStorage';
+import {Storage} from '../storages/Storage';
 
 /**
  * Use a redis backend and queue tasks with kue.
@@ -25,7 +25,7 @@ import {TasksStorage} from '../storages/tasks/TasksStorage';
  */
 export class AsyncBackend extends Backend implements BackendInterface
 {
-    private storage : TasksStorage;
+    private storage : Storage;
     private queue : Queue;
 
     public constructor(config : AsyncBackendConfiguration)
@@ -36,12 +36,12 @@ export class AsyncBackend extends Backend implements BackendInterface
         this.queue = new Queue(config.redis, this.storage, this);
     }
 
-    public initializeWorkflow(workflowGenerator : string, workflowData : any, workflowId : string, options)
+    public initializeWorkflow(realm : string, workflowGenerator : string, workflowData : any, workflowId : string, options)
     {
         return this.generateWorkflow(workflowGenerator, workflowData, workflowId)
                    .then(workflow => {
                        let paths = workflow.getAllPaths();
-                       return this.storage.initWorkflow(workflowGenerator, workflowData, paths, workflowId,
+                       return this.storage.initWorkflow(realm, workflowGenerator, workflowData, paths, workflowId,
                            options.baseContext, options.ephemeral);
                    });
     }
@@ -122,85 +122,87 @@ export class AsyncBackend extends Backend implements BackendInterface
 
         return this.storage.getWorkflow(workflowId)
                    .then((workflowHash : WorkflowHash) => {
-                       return this.generateWorkflow(workflowHash.generator, workflowHash.generatorData, workflowId);
-                   })
-                   .then(workflow => {
-                       return workflow
-                           .getTask(path, baseContext, self.getTaskHash.bind(self))
-                           .then(res => {
-                               let {task, context, prevResult, resultContext} = res;
-                               if (argument == null) {
-                                   argument = prevResult;
-                               }
+                       return this.generateWorkflow(workflowHash.generator, workflowHash.generatorData, workflowId)
+                           .then(workflow => {
+                               return workflow
+                                   .getTask(path, baseContext, self.getTaskHash.bind(self))
+                                   .then(res => {
+                                       let {task, context, prevResult, resultContext} = res;
+                                       if (argument == null) {
+                                           argument = prevResult;
+                                       }
 
-                               if (task.condition != null) {
-                                   if (!task.condition(context)) {
-                                       // Bypass this task, and mark it as executed
-                                       let taskHash = {
-                                           status: 'ok' as TaskStatus,
-                                           argument: null,
-                                           body: 'Task skipped',
-                                           contextUpdaters,
-                                           context,
-                                           executionTime: currentDate.getTime(),
-                                       };
-                                       return self.storage.setTask(workflowId, path, taskHash);
-                                   }
-                               }
+                                       if (task.condition != null) {
+                                           if (!task.condition(context)) {
+                                               // Bypass this task, and mark it as executed
+                                               let taskHash = {
+                                                   realm: workflowHash.realm,
+                                                   status: 'ok' as TaskStatus,
+                                                   argument: null,
+                                                   body: 'Task skipped',
+                                                   contextUpdaters,
+                                                   context,
+                                                   executionTime: currentDate.getTime(),
+                                               };
+                                               return self.storage.setTask(workflowId, path, taskHash);
+                                           }
+                                       }
 
-                               let callingContext = context; // The "received" context before executing the task callback
-                               factory.context = context;
-                               factory.previousContext = resultContext;
-                               try {
-                                   // Actual execution of the task
-                                   return task.execute(argument, factory)
-                                              .catch(err => {
-                                                  if (err instanceof Error) {
-                                                      err = err.message;
-                                                  }
-                                                  return Promise.reject({
-                                                      type: ExecutionErrorType.EXECUTION_FAILED,
-                                                      payload: {
-                                                          body: err,
-                                                          argument,
-                                                          context: callingContext,
-                                                          contextUpdaters,
-                                                      },
-                                                  });
-                                              })
-                                              .then((taskResult) => {
-                                                  // Middleware to perform operations with the task result
-                                                  if (task.onComplete != null) {
-                                                      console.log(task.onComplete);
-                                                  }
+                                       let callingContext = context; // The "received" context before executing the task callback
+                                       factory.context = context;
+                                       factory.previousContext = resultContext;
+                                       try {
+                                           // Actual execution of the task
+                                           return task.execute(argument, factory)
+                                               .catch(err => {
+                                                   if (err instanceof Error) {
+                                                       err = err.message;
+                                                   }
+                                                   return Promise.reject({
+                                                       type: ExecutionErrorType.EXECUTION_FAILED,
+                                                       payload: {
+                                                           body: err,
+                                                           argument,
+                                                           context: callingContext,
+                                                           contextUpdaters,
+                                                       },
+                                                   });
+                                               })
+                                               .then((taskResult) => {
+                                                   // Middleware to perform operations with the task result
+                                                   if (task.onComplete != null) {
+                                                       console.log(task.onComplete);
+                                                   }
 
-                                                  if (task.debug != null) {
-                                                      task.debug(taskResult, factory.context);
-                                                  }
+                                                   if (task.debug != null) {
+                                                       task.debug(taskResult, factory.context);
+                                                   }
 
-                                                  // Update the task hash
-                                                  let taskHash = {
-                                                      status: 'ok' as TaskStatus,
-                                                      argument,
-                                                      context: callingContext,
-                                                      body: taskResult || null,
-                                                      contextUpdaters,
-                                                      executionTime: currentDate.getTime(),
-                                                  };
-                                                  return self.storage.setTask(workflowId, path, taskHash);
-                                              });
-                               }
-                               catch (err) {
-                                   // Direct exception in the task callback
-                                   return Promise.reject({
-                                       type: ExecutionErrorType.EXECUTION_FAILED,
-                                       payload: {
-                                           body: typeof err == 'string' ? err : err.toString(),
-                                           argument,
-                                           context: callingContext,
-                                       },
+                                                   // Update the task hash
+                                                   let taskHash = {
+                                                       realm: workflowHash.realm,
+                                                       status: 'ok' as TaskStatus,
+                                                       argument,
+                                                       context: callingContext,
+                                                       body: taskResult || null,
+                                                       contextUpdaters,
+                                                       executionTime: currentDate.getTime(),
+                                                   };
+                                                   return self.storage.setTask(workflowId, path, taskHash);
+                                               });
+                                       }
+                                       catch (err) {
+                                           // Direct exception in the task callback
+                                           return Promise.reject({
+                                               type: ExecutionErrorType.EXECUTION_FAILED,
+                                               payload: {
+                                                   body: typeof err == 'string' ? err : err.toString(),
+                                                   argument,
+                                                   context: callingContext,
+                                               },
+                                           });
+                                       }
                                    });
-                               }
                            });
                    });
     }
@@ -256,6 +258,10 @@ export class AsyncBackend extends Backend implements BackendInterface
         return this.storage.getTasksStatuses(paths, workflowId);
     }
 
+    public getAllWorkflowsUids() {
+        return this.storage.getAllWorkflowsUids();
+    }
+
     /**
      * Delete tasks hashs and workflow hash in redis.
      *
@@ -271,6 +277,10 @@ export class AsyncBackend extends Backend implements BackendInterface
                            this.storage.deleteTasks(workflowId, paths),
                        ]);
                    });
+    }
+
+    public deleteWorkflowsByRealm(realm : string) {
+        return this.storage.deleteByField('realm', realm);
     }
 }
 
