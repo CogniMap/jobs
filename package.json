@@ -1,6 +1,6 @@
 {
   "name": "jobs",
-  "version": "0.3.3",
+  "version": "1.0.0",
   "license": "GPL-3",
   "description": "Scheduler asynchronous of tasks workflows, that allow step by step execution.",
   "scripts": {
@@ -16,10 +16,11 @@
     "body-parser": "^1.18.2",
     "express": "^4.16.2",
     "express-handlebars": "^3.0.0",
-    "nodemon": "^1.17.5",
+    "nodemon": "^1.18.3",
     "typescript": "^2.6.1"
   },
   "dependencies": {
+    "aws-sdk": "^2.282.1",
     "bluebird": "^3.5.0",
     "immutability-helper": "^2.3.1",
     "kue": "^0.11.6",

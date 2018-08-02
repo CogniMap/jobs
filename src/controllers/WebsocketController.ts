@@ -1,22 +1,24 @@
 const socketio = require('socket.io');
 const Promise = require('bluebird');
 
-import { TaskWatcher } from '../backends/watcher';
-import { Backend } from '../backends/Backend';
-import { Packets } from '../network';
-import { Controller } from './Controller';
+import {TaskWatcher} from '../backends/watcher';
+import {Backend} from '../backends/Backend';
+import {Packets} from '../network';
+import {Controller} from './Controller';
 import {
     TaskHash, Statuses, TaskError,
     Workflow, WorkflowHash, WorkflowStatus,
     WebsocketControllerConfig, ControllerConfiguration
 } from '../index.d';
 
-export class WebsocketController extends Controller
-{
+/**
+ * WARNING : You can't launch two Jobs instance with a websocket controller (the lastly
+ * declared websocket contorller will handle all connections).
+ */
+export class WebsocketController extends Controller {
     private io;
 
-    public constructor(backend : Backend, config : WebsocketControllerConfig)
-    {
+    public constructor(backend: Backend, config: WebsocketControllerConfig) {
         super(backend, config as ControllerConfiguration);
 
         this.setupWebsockets(config.server);
@@ -45,8 +47,7 @@ export class WebsocketController extends Controller
      *
      *  @param app An express-like app
      */
-    public setupWebsockets(server)
-    {
+    public setupWebsockets(server) {
         let self = this;
         this.io = socketio(server, {
             serveClient: false,
@@ -59,23 +60,22 @@ export class WebsocketController extends Controller
                 Packets.hello(socket);
 
                 // Get and send the status of all tasks of the given workflow
-                function sendWorkflowStatus(workflowHash : WorkflowHash, workflow : Workflow)
-                {
+                function sendWorkflowStatus(workflowHash: WorkflowHash, workflow: Workflow) {
                     Packets.setWorkflowStatus(socket, workflow.id, workflowHash.status);
                     sendTasksStatuses(socket, workflow.id);
                 }
 
-                function sendTasksStatuses(socket, workflowId)
-                {
+                function sendTasksStatuses(socket, workflowId) {
                     self.backend.getWorkflow(workflowId)
                         .then(res => {
                             let {workflow, workflowHash} = res;
                             let paths = workflow.getAllPaths();
                             return self.backend.getTasksStatuses(paths, workflowId)
-                                       .then(statuses => {
-                                           Packets.setTasksStatuses(socket, workflow.id, statuses);
-                                       });
-                        });
+                                .then(statuses => {
+                                    Packets.setTasksStatuses(socket, workflow.id, statuses);
+                                })
+                        })
+                        .catch(console.error);
                 }
 
                 // Watch a workflow instance events
@@ -116,14 +116,13 @@ export class WebsocketController extends Controller
      * @param {string} taskPath
      * @returns {Promise<TaskWatcher>} Resolves when the task has been executed.
      */
-    public executeOneTask(workflowId : string, taskPath : string) : Promise<TaskHash>
-    {
+    public executeOneTask(workflowId: string, taskPath: string): Promise<TaskHash> {
         let self = this;
         return new Promise((resolve, reject) => {
             this.backend.executeOneTask(workflowId, taskPath)
                 .then(watcher => {
                     watcher
-                        .on('complete', function (taskHash : TaskHash) {
+                        .on('complete', function (taskHash: TaskHash) {
                             self.sendTasksStatuses(workflowId, {
                                 [taskPath]: {
                                     status: 'ok',
@@ -132,11 +131,11 @@ export class WebsocketController extends Controller
                             });
                             resolve(taskHash);
                         })
-                        .on('failed', function (err : TaskError) {
+                        .on('failed', function (err: TaskError) {
                             self.sendTasksStatuses(workflowId, {
                                 [taskPath]: {
                                     status: 'failed',
-                                    ... err.payload
+                                    ...err.payload
                                 } as any,
                             });
                             self.onWorkflowError(workflowId, taskPath, err.payload);
@@ -155,8 +154,7 @@ export class WebsocketController extends Controller
     /**
      * If a websocket server is registered, dispatch statuses update.
      */
-    private sendTasksStatuses(workflowId : string, statuses : Statuses)
-    {
+    private sendTasksStatuses(workflowId: string, statuses: Statuses) {
         if (this.io != null) {
             Packets.setTasksStatuses(this.io.sockets.in(workflowId), workflowId, statuses);
         }
@@ -165,13 +163,12 @@ export class WebsocketController extends Controller
     /**
      * @inheritDoc
      */
-    public finishWorkflow(workflowId : string) : Promise<{}>
-    {
+    public finishWorkflow(workflowId: string): Promise<{}> {
         return (super.finishWorkflow(workflowId) as any)
-                    .then(() => {
-                        if (this.io != null) {
-                            Packets.setWorkflowStatus(this.io.sockets.in(workflowId), workflowId, 'done');
-                        }
-                    });
+            .then(() => {
+                if (this.io != null) {
+                    Packets.setWorkflowStatus(this.io.sockets.in(workflowId), workflowId, 'done');
+                }
+            });
     }
 }

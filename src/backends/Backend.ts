@@ -42,12 +42,13 @@ export abstract class Backend
     /**
      * Initialize the workflow tasks hashes.
      *
+     * @param realm
      * @param workflowGenerator
      * @param workflowData
      * @param workflowId
      * @param options
      */
-    public abstract initializeWorkflow(workflowGenerator : string, workflowData : any, workflowId : string, options : {
+    public abstract initializeWorkflow(realm : string, workflowGenerator : string, workflowData : any, workflowId : string, options : {
         baseContext : any,
         ephemeral : any,
     }) : Promise<any>;
@@ -66,7 +67,7 @@ export abstract class Backend
             return model.create(data);
         } else {
             if (data.save != null) {
-                // Data is already an instanc3
+                // Data is already an instance
                 return data.save();
             } else {
                 return model.findById(data.id)
@@ -119,10 +120,14 @@ export abstract class Backend
 
     public abstract getTasksStatuses(paths : string[], workflowId : string) : Promise<Statuses>
 
+    public abstract getAllWorkflowsUids() : Promise<string[]>;
+
     /**
      * Delete all data related to the given workflow.
      *
      * @param {string} workflowId
      */
     public abstract deleteWorkflow(workflowId : string) : Promise<{}>;
+
+    public abstract deleteWorkflowsByRealm(realm : string) : Promise<{}>;
 }

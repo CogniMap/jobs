@@ -4,7 +4,7 @@ import {
     RedisConfig, BackendInterface,
 } from './index.d';
 import { ExecutionErrorType } from './common';
-import { Redis } from './redis';
+import { Storage} from './storages/Storage';
 import { reduce } from './objects';
 import { TaskWatcher } from './backends/watcher';
 import { AsyncBackend } from './backends/AsyncBackend';
@@ -38,17 +38,17 @@ export class Queue
 {
     private queue = null;
     private backend : AsyncBackend;
-    private redis : Redis = null;
+    private storage : Storage = null;
 
     /**
      * We use a WebSocket server to dispatch in real time the jobs progression (and logs).
      */
-    public constructor(config : RedisConfig, redis, backend : AsyncBackend)
+    public constructor(config : {host: string, port ?: number}, storage, backend : AsyncBackend)
     {
         this.queue = kue.createQueue({ // TODO use our redis client
             redis: config,
         });
-        this.redis = redis;
+        this.storage = storage;
         this.backend = backend;
 
         // Setup kue
@@ -86,7 +86,7 @@ export class Queue
                         let {type, payload} = err;
                         if (type == ExecutionErrorType.EXECUTION_FAILED) {
                             // Error during the task execution
-                            self.redis.setTask(job.data.workflowId, job.data.taskPath, {
+                            self.storage.setTask(job.data.workflowId, job.data.taskPath, {
                                 status: 'failed',
                                 ... reduce(err, ['argument', 'context', 'body']),
                             } as any)

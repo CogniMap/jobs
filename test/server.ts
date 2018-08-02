@@ -1,29 +1,44 @@
 const Express = require('express');
+const uuidv4 = require('uuid/v4');
 const http = require('http');
 const exphbs = require('express-handlebars');
 const bodyParser = require('body-parser');
 const intersection = require('lodash/intersection');
 
-import { Jobs } from '../src/index';
-import { TreeWorkflow } from '../src/workflows/TreeWorkflow';
-import { Factory, WebsocketControllerConfig } from '../src/index.d';
+import {Jobs} from '../src/index';
+import {TreeWorkflow} from '../src/workflows/TreeWorkflow';
+import {Factory, WebsocketControllerConfig, RedisConfig} from '../src/index.d';
+
+
+/**
+ * Usage :
+ *
+ *  node server.js <storage_type> <frontend_webroot>
+ */
 
 const app = Express();
 let server = http.Server(app);
-const mysqlConfig = {
+const redisConfig = {
     host: '0.0.0.0',
-    port: 3305,
-    username: 'admin',
-    password: 'password',
+    port: 6380,
 };
+const dynamodbConfig = {
+    type: 'dynamodb',
+    region: 'eu-west-3',
+    tableName: 'cognimap-test'
+}
 
-let webSocketJobs = new Jobs(mysqlConfig, {
+
+const storageType = process.argv[2]; // "aws" or "redis"
+
+let webSocketJobs = new Jobs({
     type: Jobs.BACKEND_ASYNC,
     config: {
-        redis: {
-            host: '0.0.0.0',
-            port: 6380,
-        },
+        redis: redisConfig,
+        tasksStorage: storageType == "redis" ? ({
+            type: 'redis',
+            ...redisConfig
+        } as RedisConfig) : dynamodbConfig as any,
     },
 }, {
     type: Jobs.CONTROLLER_WEBSOCKET,
@@ -32,18 +47,17 @@ let webSocketJobs = new Jobs(mysqlConfig, {
     } as WebsocketControllerConfig,
 } as any);
 
-let debugJobs = new Jobs(mysqlConfig, {
+let debugJobs = new Jobs({
     type: Jobs.BACKEND_SYNC,
 }, {
     type: Jobs.CONTROLLER_BASE,
 });
 
-
-if (process.argv.length != 3) {
-    console.log('Usage : node sever.js <Public JS path>');
+if (process.argv.length != 4) {
+    console.log('Usage : node sever.js <Storage type> <Public JS path>');
     process.exit();
 }
-const publicJsPath = process.argv[2];
+const publicJsPath = process.argv[3];
 console.log('Using public js : ' + publicJsPath);
 app.use('/js', Express.static(publicJsPath));
 
@@ -58,7 +72,7 @@ const generator1 = (data) => {
         {
             name: 'task1',
             description: 'Returns a Promise.resolve',
-            execute: (arg, factory : Factory) => {
+            execute: (arg, factory: Factory) => {
                 console.log('Initial argument : ');
                 console.log(arg);
                 return Promise.resolve('OK');
@@ -67,7 +81,7 @@ const generator1 = (data) => {
         }, {
             name: 'task2',
             description: 'Update context',
-            execute: (arg, factory : Factory) => {
+            execute: (arg, factory: Factory) => {
                 factory.updateContext({
                     test: {$set: 'ok'},
                 });
@@ -77,7 +91,7 @@ const generator1 = (data) => {
         }, {
             name: 'task3',
             description: 'See updated context',
-            execute: (arg, factory : Factory) => {
+            execute: (arg, factory: Factory) => {
                 return new Promise((resolve, reject) => {
                     console.log('Start timeout ...');
                     setTimeout(() => {
@@ -90,7 +104,7 @@ const generator1 = (data) => {
         }, {
             name: 'task4',
             description: 'Skipped task',
-            execute: (arg, factory : Factory) => {
+            execute: (arg, factory: Factory) => {
                 return Promise.reject('Should not happened');
             },
             children: [],
@@ -98,7 +112,7 @@ const generator1 = (data) => {
         }, {
             name: 'task5',
             description: 'Returns a Promise.reject',
-            execute: (arg, factory : Factory) => {
+            execute: (arg, factory: Factory) => {
                 console.log('task4 (will fail)');
                 return Promise.reject('Error');
             },
@@ -106,7 +120,7 @@ const generator1 = (data) => {
         }, {
             name: 'task6',
             description: 'Throws an Error',
-            execute: (arg, factory : Factory) => {
+            execute: (arg, factory: Factory) => {
                 throw new Error('Error');
             },
             children: [],
@@ -121,7 +135,7 @@ const generator2 = (data) => {
         {
             name: 'task1',
             description: 'Returns a Promise.resolve',
-            execute: (arg, factory : Factory) => {
+            execute: (arg, factory: Factory) => {
                 console.log('Initial argument : ');
                 console.log(arg);
                 return Promise.resolve('OK');
@@ -130,7 +144,7 @@ const generator2 = (data) => {
         }, {
             name: 'task2',
             description: 'Update context',
-            execute: (arg, factory : Factory) => {
+            execute: (arg, factory: Factory) => {
                 factory.updateContext({
                     test: {$set: 'ok'},
                 });
@@ -152,28 +166,33 @@ app.get('/', function (req, res) {
     const testData = {
         payload: 'test',
     };
+    let realm = uuidv4();
     Promise.all([
-        webSocketJobs.createWorkflowInstance('test1', testData, {name: 'test_workflow1'}),
-        webSocketJobs.createWorkflowInstance('test2', testData, {
+        // Single workflow test
+        webSocketJobs.createWorkflowInstance(realm, 'test1', testData, {name: 'test_workflow1'}),
+
+        // Multi worklfows test
+        webSocketJobs.createWorkflowInstance(realm, 'test2', testData, {
             name: 'test_workflow2',
             ephemeral: true,
         }),
-        webSocketJobs.createWorkflowInstance('test2', testData, {
+        webSocketJobs.createWorkflowInstance(realm, 'test2', testData, {
             name: 'test_workflow3',
             ephemeral: true,
-        })
+        }),
     ])
 
-                 .then(workflowIds => {
-                     res.render('../../../views/home', {
-                         singleWorkflowId: workflowIds[0],
-                         multiWorkflowIds: JSON.stringify([workflowIds[1], workflowIds[2]]),
-                     });
-                 });
+        .then(workflowIds => {
+            res.render('../../../views/home', {
+                realm,
+                singleWorkflowId: workflowIds[0],
+                multiWorkflowIds: JSON.stringify([workflowIds[1], workflowIds[2]]),
+                awsWorkflowId: workflowIds[3]
+            });
+        });
 });
 
-function sendResults(promise, res)
-{
+function sendResults(promise, res) {
     promise
         .then(() => {
             res.json({result: 'ok'});
@@ -213,10 +232,22 @@ app.post('/executeAllTasksMulti', bodyParser.json(), function (req, res) {
 app.post('/hasWorkflows', bodyParser.json(), function (req, res) {
     let workflowIds = req.body.workflowIds;
     webSocketJobs.getAllWorkflows()
-        .then(allWorkflows => {
-            let allWorkflowIds = allWorkflows.map(workflowInstance => workflowInstance.id);
+        .then(allWorkflowsIds => {
             res.json({
-                existing: intersection(workflowIds, allWorkflowIds)
+                existing: intersection(workflowIds, allWorkflowsIds)
+            });
+        });
+});
+
+/**
+ * Delete workflows by realm
+ */
+app.post('/deleteByRealm', bodyParser.json(), function (req, res) {
+    let realm = req.body.realm;
+    webSocketJobs.destroyWorkflowsByRealm(realm)
+        .then(() => {
+            res.json({
+                result: 'ok'
             });
         });
 });
@@ -225,16 +256,23 @@ app.get('/testSync', function (req, res) {
     const testData = {
         payload: 'test',
     };
-    debugJobs.createWorkflowInstance('test', testData, {name: 'test_workflow'})
-             .then(workflowId => {
-                 debugJobs.executeAllTasks(workflowId)
-                          .then(() => {
-                              res.json({result: 'ok (resolved)'});
-                          })
-                          .catch(() => {
-                              res.json({result: 'ok (rejected)'});
-                          });
-             });
+    let realm = uuidv4();
+    debugJobs.createWorkflowInstance(realm, 'test', testData, {name: 'test_workflow'})
+        .then(workflowId => {
+            debugJobs.executeAllTasks(workflowId)
+                .then(() => {
+                    res.json({
+                        result: 'ok (resolved)',
+                        realm,
+                    });
+                })
+                .catch(() => {
+                    res.json({
+                        result: 'ok (rejected)',
+                        realm,
+                    });
+                });
+        });
 });
 
 server.listen(4005, function () {

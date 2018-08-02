@@ -13,7 +13,7 @@ import { update } from '../immutability';
 import { Backend } from './Backend';
 
 /**
- * This backend store all workflow/tasks hashes in its attributes (ie in-memory, don't use persistent backend).
+ * This backend store all workflow/tasks hashes in its attributes (ie in-memory, don't use tasks backend).
  */
 export class SyncBackend extends Backend implements BackendInterface
 {
@@ -37,7 +37,7 @@ export class SyncBackend extends Backend implements BackendInterface
         this.contexts = {};
     }
 
-    public initializeWorkflow(workflowGenerator : string, workflowData : any, workflowId : string, options)
+    public initializeWorkflow(realm : string, workflowGenerator : string, workflowData : any, workflowId : string, options)
     {
         let self = this;
         return this.generateWorkflow(workflowGenerator, workflowData, workflowId)
@@ -46,6 +46,7 @@ export class SyncBackend extends Backend implements BackendInterface
                        let tasks = {};
                        for (let path of paths) {
                            tasks[path] = {
+                               realm,
                                status: 'inactive',
                                body: null,
                                argument: null,
@@ -56,6 +57,7 @@ export class SyncBackend extends Backend implements BackendInterface
                        }
                        self.workflows[workflowId] = {
                            hash: {
+                               realm,
                                generator: workflowGenerator,
                                generatorData: workflowData,
                                baseContext: options.baseContext,
@@ -131,6 +133,7 @@ export class SyncBackend extends Backend implements BackendInterface
                     if (!task.condition(context)) {
                         // Bypass this task, and mark it as executed
                         let taskHash = {
+                            realm: workflowDetails.hash.realm,
                             status: 'ok' as TaskStatus,
                             argument,
                             context,
@@ -158,6 +161,7 @@ export class SyncBackend extends Backend implements BackendInterface
 
                             // Update the task hash
                             let taskHash = {
+                                realm: workflowDetails.hash.realm,
                                 status: 'ok' as TaskStatus,
                                 argument,
                                 context: callingContext,
@@ -244,6 +248,10 @@ export class SyncBackend extends Backend implements BackendInterface
         return this.workflows[workflowId].hash.baseContext;
     }
 
+    public getAllWorkflowsUids() {
+        return Promise.resolve(Object.keys(this.workflows));
+    }
+
     /**
      * @inheritDoc
      */
@@ -252,6 +260,19 @@ export class SyncBackend extends Backend implements BackendInterface
         delete this.workflows[workflowId];
         delete this.contexts[workflowId];
         return Promise.resolve();
+    }
+
+    public deleteWorkflowsByRealm(realm : string) : Promise<{}>
+    {
+        let newWorkflows = {};
+        for (let workflowUid in this.workflows) {
+            let workflow = this.workflows[workflowUid];
+            if (workflow.hash.realm != realm) {
+                newWorkflows[workflowUid] = workflow;
+            }
+        }
+        this.workflows = newWorkflows;
+        return new Promise();
     }
 }
 
