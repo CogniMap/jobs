@@ -113,7 +113,7 @@ export class AsyncBackend extends Backend implements BackendInterface
                 }
                 catch (e) {
                     // TODO return  ExecutionErrorType.CONTEXT_UPDATE
-                    console.log('Fail to update context', e);
+                    console.warn('Fail to update context', e);
                 }
             },
 
@@ -171,7 +171,7 @@ export class AsyncBackend extends Backend implements BackendInterface
                                                .then((taskResult) => {
                                                    // Middleware to perform operations with the task result
                                                    if (task.onComplete != null) {
-                                                       console.log(task.onComplete);
+                                                       console.log("[TASK COMPLETE] " + task.onComplete);
                                                    }
 
                                                    if (task.debug != null) {
