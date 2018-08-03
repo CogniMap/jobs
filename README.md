@@ -96,6 +96,16 @@ The library support DynamoDB and Redis storages, for persistent storage (tasks r
 It also use a redis database for the jobs queue. This database may present on the same instance (not
 necesseraly duplicated or persistent).
 
+### AWS DynamoDb storage
+
+Jobs will use the AWS-sdk default authentification. By default it might either be through the instance profile
+if any, or through the environment variables : 
+```
+AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY
+```
+You may also give them directly in the storage configuration.
+
 ## Controllers
 
 Entry points to execute or schedule tasks are in the main Jobs class. 

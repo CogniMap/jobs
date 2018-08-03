@@ -16,7 +16,11 @@ export class DynamoDb extends Storage {
         super();
         this.dynamodb = new AWS.DynamoDB({
             apiVersion: '2012-08-10',
-            region: dynamodbConfig.region
+            region: dynamodbConfig.region,
+            ... (dynamodbConfig.awsCredentials == null ? {} : {
+                accessKeyId: dynamodbConfig.awsCredentials.keyId,
+                secretKey: dynamodbConfig.awsCredentials.secret
+            })
         });
         this.tableName = dynamodbConfig.tableName;
     }
@@ -156,7 +160,7 @@ export class DynamoDb extends Storage {
 
     public getAllWorkflowsUids() {
         return this.dynamodb.scan({
-            ExpressionAttributeNames:{
+            ExpressionAttributeNames: {
                 "#key": "key"
             },
             ExpressionAttributeValues: {

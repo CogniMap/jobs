@@ -34,6 +34,11 @@ export interface RedisConfig extends StorageConfig {
 export interface DynamodbConfig extends StorageConfig {
     region: string;
     tableName: string;
+    
+    awsCredentials ?: {
+        keyId: string;
+        secret: string;
+    }
 }
 
 /******************************************************************************
