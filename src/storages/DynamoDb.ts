@@ -137,7 +137,7 @@ export class DynamoDb extends Storage {
         }).promise();
     }
 
-    public deleteByField(field: string, data) {
+    public deleteByField(field: string, data) : Promise<string[]> {
         let self = this;
         let value = JSON.stringify(data);
 
@@ -154,7 +154,7 @@ export class DynamoDb extends Storage {
             let keys = result.Items.map(item => {
                 return item.Key.S;
             });
-            return self.bulkDelete(keys);
+            return self.bulkDelete(keys).then(() => keys);
         });
     }
 

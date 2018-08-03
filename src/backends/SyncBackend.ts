@@ -258,6 +258,8 @@ export class SyncBackend extends Backend implements BackendInterface
     {
         delete this.workflows[workflowId];
         delete this.contexts[workflowId];
+
+
         return Promise.resolve();
     }
 

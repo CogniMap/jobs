@@ -51,6 +51,7 @@ export interface BackendConfiguration {
         host: string;
         port?: number;
     };
+    onDeleteWorkflow ?: DeleteWorkflowHandler;
 }
 
 export interface DynamodbTasksConfig extends StorageConfig {
@@ -118,7 +119,7 @@ declare class Jobs {
 
     public destroyWorkflow(workflowId: string);
 
-    public destroyWorkflowsByRealm(realm : string);
+    public destroyWorkflowsByRealm(realm : string) : Promise<any>;
 }
 
 
@@ -146,6 +147,11 @@ export namespace Tasks {
 export interface WorkflowErrorHandler 
 {
     (workflowId : string, taskPath: string, err): void;
+}
+
+export interface DeleteWorkflowHandler
+{
+    (workflowId: string): void;
 }
 
 export namespace Workflows {
