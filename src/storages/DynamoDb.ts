@@ -19,7 +19,7 @@ export class DynamoDb extends Storage {
             region: dynamodbConfig.region,
             ... (dynamodbConfig.awsCredentials == null ? {} : {
                 accessKeyId: dynamodbConfig.awsCredentials.keyId,
-                secretKey: dynamodbConfig.awsCredentials.secret
+                secretAccessKey: dynamodbConfig.awsCredentials.secret
             })
         });
         this.tableName = dynamodbConfig.tableName;
