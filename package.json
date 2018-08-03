@@ -1,6 +1,6 @@
 {
   "name": "jobs",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "license": "GPL-3",
   "description": "Scheduler asynchronous of tasks workflows, that allow step by step execution.",
   "scripts": {
