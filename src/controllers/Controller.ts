@@ -31,17 +31,21 @@ export class Controller implements ControllerInterface {
         let self = this;
         return new Promise((resolve, reject) => {
             this.backend.executeOneTask(workflowId, taskPath, argument)
-                .then(({watcher, taskHash}) => {
-                    watcher
-                        .on('complete', resolve)
-                        .on('failed', function (err: TaskError) {
-                            self.onWorkflowError(workflowId, taskPath, err.payload);
-                            reject(err.payload);
-                        })
-                        .on('error', (err) => {
-                            self.onWorkflowError(workflowId, taskPath, err);
-                            reject(err);
-                        });
+                .then((res) => {
+                    if (res == null) {
+                    } else {
+                        let {watcher, taskHash} = res;
+                        watcher
+                            .on('complete', resolve)
+                            .on('failed', function (err: TaskError) {
+                                self.onWorkflowError(workflowId, taskPath, err.payload);
+                                reject(err.payload);
+                            })
+                            .on('error', (err) => {
+                                self.onWorkflowError(workflowId, taskPath, err);
+                                reject(err);
+                            });
+                    }
                 });
         });
     }

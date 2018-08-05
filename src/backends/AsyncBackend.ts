@@ -68,7 +68,7 @@ export class AsyncBackend extends Backend implements BackendInterface {
     public executeOneTask(workflowId: string, taskPath: string, argument = null) {
         // First, get the workflow to make sure it still exists
         return this.storage.getWorkflow(workflowId).then((workflow) => {
-            if (workflow == null) {
+            if (workflow == null || workflow.generator == null) {
                 console.warn("[JOBS] Workflow does not exist : " + workflowId);
             } else {
                 return this.storage.setTaskStatus(workflowId, taskPath, 'queued')
