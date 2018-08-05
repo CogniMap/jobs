@@ -1,20 +1,19 @@
 import {
     TaskError, TaskHash,
     WorkflowStatus, WorkflowErrorHandler,
-    ControllerConfiguration, ControllerInterface } from '../index.d';
-import { Backend } from '../backends/Backend';
+    ControllerConfiguration, ControllerInterface
+} from '../index.d';
+import {Backend} from '../backends/Backend';
 
 
 /**
  * Base controller.
  */
-export class Controller implements ControllerInterface
-{
-    protected backend : Backend;
-    protected onError : WorkflowErrorHandler;
+export class Controller implements ControllerInterface {
+    protected backend: Backend;
+    protected onError: WorkflowErrorHandler;
 
-    public constructor(backend : Backend, config : ControllerConfiguration)
-    {
+    public constructor(backend: Backend, config: ControllerConfiguration) {
         this.backend = backend;
         this.onError = config.onError;
     }
@@ -26,15 +25,14 @@ export class Controller implements ControllerInterface
      * @param {string} taskPath
      * @return Promise Resolve/Reject when the task has been executed
      */
-    public executeOneTask(workflowId : string, taskPath : string, argument = null) : Promise<TaskHash>
-    {
+    public executeOneTask(workflowId: string, taskPath: string, argument = null): Promise<TaskHash> {
         let self = this;
         return new Promise((resolve, reject) => {
             this.backend.executeOneTask(workflowId, taskPath, argument)
-                .then(watcher => {
+                .then(({watcher, taskHash}) => {
                     watcher
                         .on('complete', resolve)
-                        .on('failed', function (err : TaskError) {
+                        .on('failed', function (err: TaskError) {
                             self.onWorkflowError(workflowId, taskPath, err.payload);
                             reject(err.payload);
                         })
@@ -54,18 +52,17 @@ export class Controller implements ControllerInterface
      * @param {any} argument
      * @returns {PromiseLike<never | T> | Promise<never | T>} Resolves with the latest result, when all thass of the workflow have been executed
      */
-    public executeAllTasks(workflowId : string, argument = null) : Promise<any>
-    {
+    public executeAllTasks(workflowId: string, argument = null): Promise<any> {
         let self = this;
         return this.backend.getWorkflow(workflowId)
-                   .then(res => {
-                       let {workflow, workflowHash} = res;
-                       return workflow.execute(self, argument)
-                           .catch(({err, taskPath}) => {
-                               self.onWorkflowError(workflowId, taskPath, err);
-                               return Promise.reject(err);
-                           })
-                   });
+            .then(res => {
+                let {workflow, workflowHash} = res;
+                return workflow.execute(self, argument)
+                    .catch(({err, taskPath}) => {
+                        self.onWorkflowError(workflowId, taskPath, err);
+                        return Promise.reject(err);
+                    })
+            });
     }
 
     /**
@@ -76,8 +73,7 @@ export class Controller implements ControllerInterface
      *
      * @param {string} workflowId
      */
-    public finishWorkflow(workflowId : string) : Promise<{}>
-    {
+    public finishWorkflow(workflowId: string): Promise<{}> {
         let self = this;
         return this.backend.getWorkflow(workflowId)
             .then(({workflow, workflowHash}) => {
@@ -95,8 +91,7 @@ export class Controller implements ControllerInterface
      * @param {string} workflowId
      * @param err
      */
-    protected onWorkflowError(workflowId : string, taskPath: string, err)
-    {
+    protected onWorkflowError(workflowId: string, taskPath: string, err) {
         if (this.onError != null) {
             this.onError(workflowId, taskPath, err);
         }
@@ -110,7 +105,6 @@ export class Controller implements ControllerInterface
             });
     }
 
-    public onWorkflowUpdate(workflowId : string)
-    {
+    public onWorkflowUpdate(workflowId: string) {
     }
 }

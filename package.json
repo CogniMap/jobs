@@ -8,7 +8,7 @@
     "build:watch": "tsc --watch",
     "build-test": "cd test && tsc",
     "build-test:watch": "cd test && tsc --watch",
-    "start-test": "cd test/dist/test && nodemon server.js $JOBS_REACT/tests",
+    "start-test": "cd test/dist/test && nodemon --watch ../../../src server.js redis $JOBS_REACT/tests",
     "prepare": "npm run build"
   },
   "devDependencies": {
@@ -29,7 +29,8 @@
     "redis": "^2.8.0",
     "sequelize": "^4.28.5",
     "socket.io": "^2.0.3",
-    "uniqid": "^5.0.2"
+    "uniqid": "^5.0.2",
+    "uuid": "^3.3.2"
   },
   "main": "./dist/index.js",
   "types": "./src/index.d.ts",

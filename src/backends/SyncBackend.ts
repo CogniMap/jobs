@@ -90,7 +90,7 @@ export class SyncBackend extends Backend implements BackendInterface
      * @param baseContext
      * @param argument If null, the previous result (ie of the previous task) is used.
      */
-    public executeOneTask(workflowId : string, path = '#', argument = null) : Promise<TaskWatcher>
+    public executeOneTask(workflowId : string, path = '#', argument = null)
     {
         let self = this;
         let workflowDetails = this.workflows[workflowId];
@@ -201,7 +201,10 @@ export class SyncBackend extends Backend implements BackendInterface
                 }
             });
 
-        return Promise.resolve(watcher);
+        return Promise.resolve({
+            watcher,
+            taskHash: this.workflows[workflowId].tasks[path]
+        });
     }
 
     public updateWorkflow(workflowId : string)

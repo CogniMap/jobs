@@ -120,9 +120,19 @@ export class WebsocketController extends Controller {
         let self = this;
         return new Promise((resolve, reject) => {
             this.backend.executeOneTask(workflowId, taskPath)
-                .then(watcher => {
+                .then(({watcher, taskHash}) => {
+                    if (taskHash != null) {
+                        self.sendTasksStatuses(workflowId, {
+                            [taskPath]: {
+                                status: 'queue',
+                                ... (taskHash as any),
+                            },
+                        });
+                    }
+
                     watcher
                         .on('complete', function (taskHash: TaskHash) {
+                            console.log('complete');
                             self.sendTasksStatuses(workflowId, {
                                 [taskPath]: {
                                     status: 'ok',

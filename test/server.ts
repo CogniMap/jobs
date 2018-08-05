@@ -101,7 +101,7 @@ const generator1 = (data) => {
                     setTimeout(() => {
                         console.log('... done');
                         resolve('Nothing');
-                    }, 1000);
+                    }, 5000);
                 });
             },
             children: [],

@@ -45,7 +45,7 @@ export class Redis extends Storage {
     }
 
     public setField(key: string, field, data) {
-        return this.redis.hsetAsync(key, JSON.stringify(data));
+        return this.redis.hsetAsync(key, field, JSON.stringify(data));
     }
 
     public get(key: string) {

@@ -1,4 +1,4 @@
-import { WorkflowStatus, Statuses, WorkflowGenerator, Workflow, WorkflowHash } from '../index.d';
+import { TaskHash, WorkflowStatus, Statuses, WorkflowGenerator, Workflow, WorkflowHash } from '../index.d';
 import { TaskWatcher } from './watcher';
 
 /**
@@ -89,7 +89,10 @@ export abstract class Backend
     }
 
 
-    public abstract executeOneTask(workflowId : string, taskPath : string, argument ? : any) : Promise<TaskWatcher>;
+    public abstract executeOneTask(workflowId : string, taskPath : string, argument ? : any) : Promise<{
+        watcher: TaskWatcher,
+        taskHash: TaskHash
+    }>;
 
     public abstract getWorkflowBaseContext(workflowId : string) : Promise<any>;
 
