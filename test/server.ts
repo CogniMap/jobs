@@ -90,7 +90,11 @@ const generator1 = (data) => {
             execute: (arg, factory: Factory<Context1>) => {
                 console.log('Initial argument : ');
                 console.log(arg);
-                return Promise.resolve('OK');
+                return new Promise((resolve, reject) => {
+                    setTimeout(() => {
+                        resolve('OK');
+                    }, 5000);
+                });
             },
             children: [],
         }, {
@@ -100,7 +104,11 @@ const generator1 = (data) => {
                 factory.updateContext({
                     test: {$set: 'ok'},
                 });
-                return Promise.resolve('Context updated');
+                return new Promise((resolve, reject) => {
+                    setTimeout(() => {
+                        resolve('Context updated');
+                    }, 5000);
+                });
             },
             children: [],
         }, {
@@ -112,7 +120,7 @@ const generator1 = (data) => {
                     setTimeout(() => {
                         console.log('... done');
                         resolve('Nothing');
-                    }, 2000);
+                    }, 10000);
                 });
             },
             children: [],
