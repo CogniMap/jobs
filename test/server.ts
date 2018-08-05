@@ -67,12 +67,16 @@ app.engine('handlebars', exphbs({
 }));
 app.set('view engine', 'handlebars');
 
+interface Context1 {
+
+}
+
 const generator1 = (data) => {
     let tasks = [
         {
             name: 'task1',
             description: 'Returns a Promise.resolve',
-            execute: (arg, factory: Factory) => {
+            execute: (arg, factory: Factory<Context1>) => {
                 console.log('Initial argument : ');
                 console.log(arg);
                 return Promise.resolve('OK');
@@ -81,7 +85,7 @@ const generator1 = (data) => {
         }, {
             name: 'task2',
             description: 'Update context',
-            execute: (arg, factory: Factory) => {
+            execute: (arg, factory: Factory<Context1>) => {
                 factory.updateContext({
                     test: {$set: 'ok'},
                 });
@@ -91,7 +95,7 @@ const generator1 = (data) => {
         }, {
             name: 'task3',
             description: 'See updated context',
-            execute: (arg, factory: Factory) => {
+            execute: (arg, factory: Factory<Context1>) => {
                 return new Promise((resolve, reject) => {
                     console.log('Start timeout ...');
                     setTimeout(() => {
@@ -104,7 +108,7 @@ const generator1 = (data) => {
         }, {
             name: 'task4',
             description: 'Skipped task',
-            execute: (arg, factory: Factory) => {
+            execute: (arg, factory: Factory<Context1>) => {
                 return Promise.reject('Should not happened');
             },
             children: [],
@@ -112,7 +116,7 @@ const generator1 = (data) => {
         }, {
             name: 'task5',
             description: 'Returns a Promise.reject',
-            execute: (arg, factory: Factory) => {
+            execute: (arg, factory: Factory<Context1>) => {
                 console.log('task4 (will fail)');
                 return Promise.reject('Error');
             },
@@ -120,7 +124,7 @@ const generator1 = (data) => {
         }, {
             name: 'task6',
             description: 'Throws an Error',
-            execute: (arg, factory: Factory) => {
+            execute: (arg, factory: Factory<Context1>) => {
                 throw new Error('Error');
             },
             children: [],
@@ -130,12 +134,16 @@ const generator1 = (data) => {
     return new TreeWorkflow(tasks);
 };
 
+interface Context2 {
+
+}
+
 const generator2 = (data) => {
     let tasks = [
         {
             name: 'task1',
             description: 'Returns a Promise.resolve',
-            execute: (arg, factory: Factory) => {
+            execute: (arg, factory: Factory<Context2>) => {
                 console.log('Initial argument : ');
                 console.log(arg);
                 return Promise.resolve('OK');
@@ -144,7 +152,7 @@ const generator2 = (data) => {
         }, {
             name: 'task2',
             description: 'Update context',
-            execute: (arg, factory: Factory) => {
+            execute: (arg, factory: Factory<Context2>) => {
                 factory.updateContext({
                     test: {$set: 'ok'},
                 });
