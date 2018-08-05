@@ -52,10 +52,8 @@ export class Redis extends Storage {
         let self = this;
         return this.redis.hgetallAsync(key)
             .then(hash => {
-                console.log('get', key, hash);
                 return self.parse(hash);
             }).catch(err => {
-                console.log(err);
                 return Promise.reject(err);
             })
     }

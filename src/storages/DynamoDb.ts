@@ -16,7 +16,11 @@ export class DynamoDb extends Storage {
         super();
         this.dynamodb = new AWS.DynamoDB({
             apiVersion: '2012-08-10',
-            region: dynamodbConfig.region
+            region: dynamodbConfig.region,
+            ... (dynamodbConfig.awsCredentials == null ? {} : {
+                accessKeyId: dynamodbConfig.awsCredentials.keyId,
+                secretAccessKey: dynamodbConfig.awsCredentials.secret
+            })
         });
         this.tableName = dynamodbConfig.tableName;
     }
@@ -133,7 +137,7 @@ export class DynamoDb extends Storage {
         }).promise();
     }
 
-    public deleteByField(field: string, data) {
+    public deleteByField(field: string, data) : Promise<string[]> {
         let self = this;
         let value = JSON.stringify(data);
 
@@ -150,13 +154,13 @@ export class DynamoDb extends Storage {
             let keys = result.Items.map(item => {
                 return item.Key.S;
             });
-            return self.bulkDelete(keys);
+            return self.bulkDelete(keys).then(() => keys);
         });
     }
 
     public getAllWorkflowsUids() {
         return this.dynamodb.scan({
-            ExpressionAttributeNames:{
+            ExpressionAttributeNames: {
                 "#key": "key"
             },
             ExpressionAttributeValues: {

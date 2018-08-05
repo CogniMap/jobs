@@ -32,7 +32,14 @@ export abstract class Storage {
 
     abstract bulkDelete(keys: string[]);
 
-    abstract deleteByField(field : string, data);
+    /**
+     * Resolve to the list of deleted workflow ids.
+     *
+     * @param {string} field
+     * @param data
+     * @returns {Promise<string[]>}
+     */
+    abstract deleteByField(field : string, data) : Promise<string[]>;
 
     abstract getAllWorkflowsUids() : Promise<string[]>;
 

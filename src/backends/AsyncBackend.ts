@@ -28,12 +28,16 @@ export class AsyncBackend extends Backend implements BackendInterface
     private storage : Storage;
     private queue : Queue;
 
+    private deleteHandler;
+
     public constructor(config : AsyncBackendConfiguration)
     {
         super();
 
         this.storage = getTasksStorageInstance(config.tasksStorage);
         this.queue = new Queue(config.redis, this.storage, this);
+
+        this.deleteHandler = config.onDeleteWorkflow;
     }
 
     public initializeWorkflow(realm : string, workflowGenerator : string, workflowData : any, workflowId : string, options)
@@ -113,7 +117,7 @@ export class AsyncBackend extends Backend implements BackendInterface
                 }
                 catch (e) {
                     // TODO return  ExecutionErrorType.CONTEXT_UPDATE
-                    console.log('Fail to update context', e);
+                    console.warn('Fail to update context', e);
                 }
             },
 
@@ -171,7 +175,7 @@ export class AsyncBackend extends Backend implements BackendInterface
                                                .then((taskResult) => {
                                                    // Middleware to perform operations with the task result
                                                    if (task.onComplete != null) {
-                                                       console.log(task.onComplete);
+                                                       console.log("[TASK COMPLETE] " + task.onComplete);
                                                    }
 
                                                    if (task.debug != null) {
@@ -269,18 +273,28 @@ export class AsyncBackend extends Backend implements BackendInterface
      */
     public deleteWorkflow(workflowId : string) : Promise<{}>
     {
+        let self = this;
         return this.getWorkflow(workflowId)
                    .then(({workflow, workflowHash}) => {
                        let paths = workflow.getAllPaths();
                        return Promise.all([
                            this.storage.deleteWorkflow(workflowId),
                            this.storage.deleteTasks(workflowId, paths),
-                       ]);
+                       ]).then(() => {
+                           if (self.deleteHandler != null) {
+                               self.deleteHandler(workflowId);
+                           }
+                       })
                    });
     }
 
-    public deleteWorkflowsByRealm(realm : string) {
-        return this.storage.deleteByField('realm', realm);
+    public deleteWorkflowsByRealm(realm : string) : Promise<any> {
+        let self = this;
+        return this.storage.deleteByField('realm', realm).then(workflowIds => {
+            if (self.deleteHandler) {
+                workflowIds.map(self.deleteHandler);
+            }
+        });
     }
 }
 

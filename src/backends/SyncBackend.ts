@@ -110,7 +110,7 @@ export class SyncBackend extends Backend implements BackendInterface
                 }
                 catch (e) {
                     // TODO return  ExecutionErrorType.CONTEXT_UPDATE
-                    console.log(e);
+                    console.warn("Fail to update context : ", e);
                 }
             },
 
@@ -155,8 +155,7 @@ export class SyncBackend extends Backend implements BackendInterface
                         .then((taskResult) => {
                             // Middleware (only onComplete, no debug).
                             if (task.onComplete != null) {
-                                // TODO logging
-                                console.log(task.onComplete);
+                                console.log("[TASK COMPLETE] " + task.onComplete);
                             }
 
                             // Update the task hash
@@ -259,6 +258,8 @@ export class SyncBackend extends Backend implements BackendInterface
     {
         delete this.workflows[workflowId];
         delete this.contexts[workflowId];
+
+
         return Promise.resolve();
     }
 
