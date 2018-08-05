@@ -44,6 +44,12 @@ let webSocketJobs = new Jobs({
     type: Jobs.CONTROLLER_WEBSOCKET,
     config: {
         server,
+        onError: (workflowId, taskPath, err) => {
+            console.log('Workflow error', workflowId, taskPath, err);
+        },
+        onComplete: (workflowId) => {
+            console.log('Workflow (websocket) complete', workflowId);
+        }
     } as WebsocketControllerConfig,
 } as any);
 
@@ -51,6 +57,11 @@ let debugJobs = new Jobs({
     type: Jobs.BACKEND_SYNC,
 }, {
     type: Jobs.CONTROLLER_BASE,
+    config: {
+        onComplete: (workflowId) => {
+            console.log('Workflow (default) complete', workflowId);
+        }
+    }
 });
 
 if (process.argv.length != 4) {
@@ -101,7 +112,7 @@ const generator1 = (data) => {
                     setTimeout(() => {
                         console.log('... done');
                         resolve('Nothing');
-                    }, 5000);
+                    }, 2000);
                 });
             },
             children: [],

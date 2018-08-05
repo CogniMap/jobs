@@ -4,6 +4,8 @@
 
 export interface ControllerConfiguration {
     onError?: WorkflowErrorHandler;
+    
+    onComplete?: WorkflowSuccessHandler;
 }
 
 export interface WebsocketControllerConfig {
@@ -147,6 +149,11 @@ export namespace Tasks {
 export interface WorkflowErrorHandler 
 {
     (workflowId : string, taskPath: string, err): void;
+}
+
+export interface WorkflowSuccessHandler 
+{
+    (workflowId : string): void;
 }
 
 export interface DeleteWorkflowHandler

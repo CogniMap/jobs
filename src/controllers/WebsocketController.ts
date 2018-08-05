@@ -132,7 +132,6 @@ export class WebsocketController extends Controller {
 
                     watcher
                         .on('complete', function (taskHash: TaskHash) {
-                            console.log('complete');
                             self.sendTasksStatuses(workflowId, {
                                 [taskPath]: {
                                     status: 'ok',

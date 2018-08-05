@@ -1,6 +1,6 @@
 import {
     TaskError, TaskHash,
-    WorkflowStatus, WorkflowErrorHandler,
+    WorkflowStatus, WorkflowErrorHandler, WorkflowSuccessHandler,
     ControllerConfiguration, ControllerInterface
 } from '../index.d';
 import {Backend} from '../backends/Backend';
@@ -12,10 +12,12 @@ import {Backend} from '../backends/Backend';
 export class Controller implements ControllerInterface {
     protected backend: Backend;
     protected onError: WorkflowErrorHandler;
+    protected onComplete: WorkflowSuccessHandler;
 
     public constructor(backend: Backend, config: ControllerConfiguration) {
         this.backend = backend;
         this.onError = config.onError;
+        this.onComplete = config.onComplete;
     }
 
     /**
@@ -77,6 +79,9 @@ export class Controller implements ControllerInterface {
         let self = this;
         return this.backend.getWorkflow(workflowId)
             .then(({workflow, workflowHash}) => {
+                if (self.onComplete) {
+                    self.onComplete(workflowId);
+                }
                 if (workflowHash.ephemeral) {
                     return self.backend.deleteWorkflow(workflowId);
                 } else {
@@ -92,7 +97,7 @@ export class Controller implements ControllerInterface {
      * @param err
      */
     protected onWorkflowError(workflowId: string, taskPath: string, err) {
-        if (this.onError != null) {
+        if (this.onError != null && taskPath != null) {
             this.onError(workflowId, taskPath, err);
         }
 
