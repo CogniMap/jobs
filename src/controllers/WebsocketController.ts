@@ -120,42 +120,45 @@ export class WebsocketController extends Controller {
         let self = this;
         return new Promise((resolve, reject) => {
             this.backend.executeOneTask(workflowId, taskPath)
-                .then(({watcher, taskHash}) => {
-                    if (taskHash != null) {
-                        self.sendTasksStatuses(workflowId, {
-                            [taskPath]: {
-                                status: 'queue',
-                                ... (taskHash as any),
-                            },
-                        });
-                    }
-
-                    watcher
-                        .on('complete', function (taskHash: TaskHash) {
+                .then((res) => {
+                    if (res != null) {
+                        let {watcher, taskHash} = res;
+                        if (taskHash != null) {
                             self.sendTasksStatuses(workflowId, {
                                 [taskPath]: {
-                                    status: 'ok',
+                                    status: 'queue',
                                     ... (taskHash as any),
                                 },
                             });
-                            resolve(taskHash);
-                        })
-                        .on('failed', function (err: TaskError) {
-                            self.sendTasksStatuses(workflowId, {
-                                [taskPath]: {
-                                    status: 'failed',
-                                    ...err.payload
-                                } as any,
+                        }
+
+                        watcher
+                            .on('complete', function (taskHash: TaskHash) {
+                                self.sendTasksStatuses(workflowId, {
+                                    [taskPath]: {
+                                        status: 'ok',
+                                        ... (taskHash as any),
+                                    },
+                                });
+                                resolve(taskHash);
+                            })
+                            .on('failed', function (err: TaskError) {
+                                self.sendTasksStatuses(workflowId, {
+                                    [taskPath]: {
+                                        status: 'failed',
+                                        ...err.payload
+                                    } as any,
+                                });
+                                self.onWorkflowError(workflowId, taskPath, err.payload);
+                                reject(err.payload);
+                            })
+                            .on('error', function (err) {
+                                self.onWorkflowError(workflowId, taskPath, err);
+                                Packets.Errors.executionError(self.io.sockets.in(workflowId), err);
+                                reject(err);
                             });
-                            self.onWorkflowError(workflowId, taskPath, err.payload);
-                            reject(err.payload);
-                        })
-                        .on('error', function (err) {
-                            self.onWorkflowError(workflowId, taskPath, err);
-                            Packets.Errors.executionError(self.io.sockets.in(workflowId), err);
-                            reject(err);
-                        });
-                    return watcher;
+                        return watcher;
+                    }
                 });
         });
     }
