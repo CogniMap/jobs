@@ -149,7 +149,7 @@ export function handleRunTaskMessage(sendingQueueUrl, message: Sqs.RunTaskMessag
             return sendFailMessage(err);
         }
     } else {
-        console.warn('[Jobs DEBUG] Unknow task ' + message.taskPath + '. Skipping');
+        debug('[Jobs DEBUG] Unknow task ' + message.taskPath + '. Skipping');
     }
     return Promise.resolve();
 }
