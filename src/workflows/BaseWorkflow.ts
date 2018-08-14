@@ -1,4 +1,5 @@
 import {
+    Factory,
     ControllerInterface,
     WorkflowTreeTasks, Workflow, WorkflowErrorHandler,
     Task, TaskHash,

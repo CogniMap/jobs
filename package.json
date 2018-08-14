@@ -1,6 +1,6 @@
 {
   "name": "jobs",
-  "version": "1.0.12",
+  "version": "1.1.0",
   "license": "GPL-3",
   "description": "Scheduler asynchronous of tasks workflows, that allow step by step execution.",
   "scripts": {
@@ -25,10 +25,12 @@
     "immutability-helper": "^2.3.1",
     "kue": "^0.11.6",
     "mysql2": "^1.5.1",
+    "object-path": "^0.11.4",
     "promise-sequential": "^1.1.1",
     "redis": "^2.8.0",
     "sequelize": "^4.28.5",
     "socket.io": "^2.0.3",
+    "sqs-consumer": "^3.8.0",
     "uniqid": "^5.0.2",
     "uuid": "^3.3.2"
   },

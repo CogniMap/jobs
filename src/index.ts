@@ -4,13 +4,14 @@ const uniqid = require('uniqid');
 
 import {Backend} from './backends/Backend';
 import {
-    BackendConfiguration, AsyncBackendConfiguration, SyncBackendConfiguration,
+    BackendConfiguration, SqsBackendConfiguration, KueBackendConfiguration, SyncBackendConfiguration,
     ControllerConfiguration, WebsocketControllerConfig,
     WorkflowInstance, WorkflowGenerator,
 } from './index.d';
 import {WebsocketController} from './controllers/WebsocketController';
-import {AsyncBackend} from './backends/AsyncBackend';
+import {KueBackend} from './backends/KueBackend';
 import {SyncBackend} from './backends/SyncBackend';
+import {SqsBackend} from "./backends/SqsBackend";
 
 export const Workflows = require('./workflows');
 
@@ -21,7 +22,8 @@ export class Jobs {
     private backend: Backend;
     private controller: Controller;
 
-    public static BACKEND_ASYNC = 'backend_async';
+    public static BACKEND_KUE = 'backend_kue';
+    public static BACKEND_SQS = 'backend_sqs';
     public static BACKEND_SYNC = 'backend_sync';
 
     public static CONTROLLER_BASE = 'controller_base';
@@ -39,8 +41,11 @@ export class Jobs {
 
         // Initialize backend
         switch (backend.type) {
-            case Jobs.BACKEND_ASYNC:
-                this.backend = new AsyncBackend(backend.config as AsyncBackendConfiguration);
+            case Jobs.BACKEND_KUE:
+                this.backend = new KueBackend(backend.config as KueBackendConfiguration);
+                break;
+            case Jobs.BACKEND_SQS:
+                this.backend = new SqsBackend(backend.config as SqsBackendConfiguration);
                 break;
             case Jobs.BACKEND_SYNC:
                 this.backend = new SyncBackend(backend.config as SyncBackendConfiguration);

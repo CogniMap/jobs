@@ -2,16 +2,15 @@ import {getTasksStorageInstance} from "../storages/factory";
 
 const Promise = require('bluebird');
 
-import {Queue} from '../queue';
+import {KueQueue} from '../utils/kueQueue';
 import {
     Workflow, WorkflowHash,
     Statuses, TaskHash, TaskStatus, WorkflowStatus,
-    BackendInterface, AsyncBackendConfiguration,
+    BackendInterface, KueBackendConfiguration,
 } from '../index.d';
 import {ExecutionErrorType} from '../common';
 import {update} from '../immutability';
 import {Backend} from './Backend';
-import {TaskWatcher} from './watcher';
 import {Storage} from '../storages/Storage';
 
 /**
@@ -23,17 +22,17 @@ import {Storage} from '../storages/Storage';
  *    - body : JSON string (either a result or an error)
  *    - executionTime : number (last execution)
  */
-export class AsyncBackend extends Backend implements BackendInterface {
+export class KueBackend extends Backend implements BackendInterface {
     private storage: Storage;
-    private queue: Queue;
+    private queue: KueQueue;
 
     private deleteHandler;
 
-    public constructor(config: AsyncBackendConfiguration) {
+    public constructor(config: KueBackendConfiguration) {
         super();
 
         this.storage = getTasksStorageInstance(config.tasksStorage);
-        this.queue = new Queue(config.redis, this.storage, this);
+        this.queue = new KueQueue(config.redis, this.storage, this);
 
         this.deleteHandler = config.onDeleteWorkflow;
     }

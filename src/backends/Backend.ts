@@ -98,7 +98,7 @@ export abstract class Backend
 
     /**
      * Get a workflow instance from a workflow id. It includes :
-     *  - The workflow scheme (tasks etc)
+     *  - The workflow instance (tasks etc)
      *  - The workflow hash (config, state etc)
      *
      * @param workflowId

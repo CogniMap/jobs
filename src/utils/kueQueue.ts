@@ -1,13 +1,10 @@
 const kue = require('kue');
 
-import {
-    RedisConfig, BackendInterface,
-} from './index.d';
-import { ExecutionErrorType } from './common';
-import { Storage} from './storages/Storage';
-import { reduce } from './objects';
-import { TaskWatcher } from './backends/watcher';
-import { AsyncBackend } from './backends/AsyncBackend';
+import { ExecutionErrorType } from '../common';
+import { Storage} from '../storages/Storage';
+import { reduce } from '../objects';
+import { TaskWatcher } from '../backends/watcher';
+import { KueBackend } from '../backends/KueBackend';
 
 export namespace Priority
 {
@@ -34,16 +31,16 @@ interface RunTaskJob
  *
  * There is only one job type : execute a SINGLE task of a workflow.
  */
-export class Queue
+export class KueQueue
 {
     private queue = null;
-    private backend : AsyncBackend;
+    private backend : KueBackend;
     private storage : Storage = null;
 
     /**
      * We use a WebSocket server to dispatch in real time the jobs progression (and logs).
      */
-    public constructor(config : {host: string, port ?: number}, storage, backend : AsyncBackend)
+    public constructor(config : {host: string, port ?: number}, storage, backend : KueBackend)
     {
         this.queue = kue.createQueue({ // TODO use our redis client
             redis: config,

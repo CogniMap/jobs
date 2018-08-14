@@ -5,9 +5,10 @@ const exphbs = require('express-handlebars');
 const bodyParser = require('body-parser');
 const intersection = require('lodash/intersection');
 
+import {setupWorker} from "../src/utils/sqsWorker";
 import {Jobs} from '../src/index';
 import {TreeWorkflow} from '../src/workflows/TreeWorkflow';
-import {Factory, WebsocketControllerConfig, RedisConfig} from '../src/index.d';
+import {SqsBackendConfiguration, ReducedFactory, Factory, WebsocketControllerConfig, RedisConfig} from '../src/index.d';
 
 
 /**
@@ -32,14 +33,21 @@ const dynamodbConfig = {
 const storageType = process.argv[2]; // "aws" or "redis"
 
 let webSocketJobs = new Jobs({
-    type: Jobs.BACKEND_ASYNC,
+    type: Jobs.BACKEND_SQS,
     config: {
-        redis: redisConfig,
         tasksStorage: storageType == "redis" ? ({
             type: 'redis',
             ...redisConfig
         } as RedisConfig) : dynamodbConfig as any,
-    },
+
+        queueNamesPrefix: 'testJobs',
+        workers: [
+            {
+                name: 'jobs',
+            }
+        ],
+        region: 'eu-west-1', // Only Ireland for FIFO queues
+    } as SqsBackendConfiguration,
 }, {
     type: Jobs.CONTROLLER_WEBSOCKET,
     config: {
@@ -78,80 +86,93 @@ app.engine('handlebars', exphbs({
 }));
 app.set('view engine', 'handlebars');
 
-interface Context1 {
-
-}
+setupWorker('testJobs_jobs', {
+    knownTaskPaths: [
+        '#.task1',
+        '#.task2',
+        '#.task3',
+        '#.task4',
+        '#.task5',
+        '#.task6',
+    ],
+    executor: sqsExecuteTask
+});
 
 const generator1 = (data) => {
     let tasks = [
         {
             name: 'task1',
             description: 'Returns a Promise.resolve',
-            execute: (arg, factory: Factory<Context1>) => {
-                console.log('Initial argument : ');
-                console.log(arg);
-                return new Promise((resolve, reject) => {
-                    setTimeout(() => {
-                        resolve('OK');
-                    }, 5000);
-                });
-            },
             children: [],
         }, {
             name: 'task2',
             description: 'Update context',
-            execute: (arg, factory: Factory<Context1>) => {
-                factory.updateContext({
-                    test: {$set: 'ok'},
-                });
-                return new Promise((resolve, reject) => {
-                    setTimeout(() => {
-                        resolve('Context updated');
-                    }, 5000);
-                });
-            },
             children: [],
         }, {
             name: 'task3',
             description: 'See updated context',
-            execute: (arg, factory: Factory<Context1>) => {
-                return new Promise((resolve, reject) => {
-                    console.log('Start timeout ...');
-                    setTimeout(() => {
-                        console.log('... done');
-                        resolve('Nothing');
-                    }, 10000);
-                });
-            },
             children: [],
         }, {
             name: 'task4',
             description: 'Skipped task',
-            execute: (arg, factory: Factory<Context1>) => {
-                return Promise.reject('Should not happened');
-            },
             children: [],
-            condition: (context) => false,
         }, {
             name: 'task5',
             description: 'Returns a Promise.reject',
-            execute: (arg, factory: Factory<Context1>) => {
-                console.log('task4 (will fail)');
-                return Promise.reject('Error');
-            },
             children: [],
         }, {
             name: 'task6',
             description: 'Throws an Error',
-            execute: (arg, factory: Factory<Context1>) => {
-                throw new Error('Error');
-            },
             children: [],
         },
     ];
 
     return new TreeWorkflow(tasks);
 };
+
+export function sqsExecuteTask(taskPath: string, arg, factory: ReducedFactory<any>) {
+    switch (taskPath) {
+        case "#.task1":
+            // Returns a Promise.resolve
+            console.log('Initial argument : ');
+            console.log(arg);
+            return new Promise((resolve, reject) => {
+                setTimeout(() => {
+                    resolve('OK');
+                }, 5000);
+            });
+        case "#.task2":
+            // Update context
+            return factory.updateContext({
+                test: {$set: 'ok'},
+            }).then(() => {
+                return new Promise((resolve, reject) => {
+                    setTimeout(() => {
+                        resolve('Context updated');
+                    }, 5000);
+                })
+            });
+        case "#.task3":
+            // See updated context
+            return new Promise((resolve, reject) => {
+                console.log('Start timeout ...');
+                setTimeout(() => {
+                    console.log('... done');
+                    resolve('Nothing');
+                }, 10000);
+            });
+        case "#.task4":
+            // Skipped task
+            return Promise.reject('Should not happened');
+        case "#.task5":
+            // Returns Promise.reject
+            console.log('task4 (will fail)');
+            return Promise.reject('Error');
+        case "#.task6":
+            // Throw an error
+            throw new Error('Error');
+    }
+}
 
 interface Context2 {
 
@@ -172,10 +193,11 @@ const generator2 = (data) => {
             name: 'task2',
             description: 'Update context',
             execute: (arg, factory: Factory<Context2>) => {
-                factory.updateContext({
+                return factory.updateContext({
                     test: {$set: 'ok'},
-                });
-                return Promise.resolve('Context updated');
+                }).then(() => {
+                    return Promise.resolve('Context updated');
+                })
             },
             children: [],
         },

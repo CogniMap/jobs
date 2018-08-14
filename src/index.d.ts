@@ -4,7 +4,7 @@
 
 export interface ControllerConfiguration {
     onError?: WorkflowErrorHandler;
-    
+
     onComplete?: WorkflowSuccessHandler;
 }
 
@@ -36,8 +36,8 @@ export interface RedisConfig extends StorageConfig {
 export interface DynamodbConfig extends StorageConfig {
     region: string;
     tableName: string;
-    
-    awsCredentials ?: {
+
+    awsCredentials?: {
         keyId: string;
         secret: string;
     }
@@ -49,11 +49,8 @@ export interface DynamodbConfig extends StorageConfig {
 
 export interface BackendConfiguration {
     tasksStorage: StorageConfig;
-    redis: {      // For the queue
-        host: string;
-        port?: number;
-    };
-    onDeleteWorkflow ?: DeleteWorkflowHandler;
+
+    onDeleteWorkflow?: DeleteWorkflowHandler;
 }
 
 export interface DynamodbTasksConfig extends StorageConfig {
@@ -63,15 +60,71 @@ export interface DynamodbTasksConfig extends StorageConfig {
 export interface SyncBackendConfiguration extends BackendConfiguration {
 }
 
-export interface AsyncBackendConfiguration extends BackendConfiguration {
+declare namespace Sqs {
+    export interface Worker {
+        name: string; // For queues names
+    }
+    
+    export interface SupervisionMessage {
+        type: string; // Either "runTask" 
+        
+        workflowId: string;
+        taskPath: string;
+    }
+    
+    export interface RunTaskMessage extends SupervisionMessage {
+        context: any;
+        param: any;
+    }
+    
+    export interface WorkerMessage {
+        workflowId: string;
+        taskPath: string;
+        
+        type: string; // Either "result", "updateContext"
+    }
+    
+    export interface ResultMessage extends WorkerMessage {
+        result: any;
+    }
+    
+    export interface FailMessage extends WorkerMessage {
+        error: any;
+    }
+    
+    export interface UpdateContextMessage extends WorkerMessage {
+        updater: any;
+    }
+    
+    export interface Executor {
+        (taskPath : string, argument, factory : Factory<any>);
+    }
 }
 
-interface Factory<T>
-{
-    context : T;
-    previousContext : T;
+export interface SqsBackendConfiguration extends BackendConfiguration {
+    region: string;
+    
+    queueNamesPrefix: string;
 
-    updateContext(updater: any): void;
+    // All services that can execute jobs. They will all receive tasks requests, but only one
+    // must execute it.
+    workers: Sqs.Worker[];
+}
+
+export interface KueBackendConfiguration extends BackendConfiguration {
+    redis: {      // For the queue
+        host: string;
+        port?: number;
+    };
+}
+
+interface ReducedFactory<T> {
+    context: T;
+    updateContext(updater: any): Promise<{}>;
+}
+
+interface Factory<T> extends ReducedFactory<T> {
+    previousContext: T;
 
     saveInstance(model, data);
 }
@@ -88,7 +141,8 @@ declare interface BackendInterface {
  ******************************************************************************/
 
 declare class Jobs {
-    public static BACKEND_ASYNC: string;
+    public static BACKEND_KUE: string;
+    public static BACKEND_SQS: string;
     public static BACKEND_SYNC: string;
 
     public static CONTROLLER_BASE: string;
@@ -121,7 +175,7 @@ declare class Jobs {
 
     public destroyWorkflow(workflowId: string);
 
-    public destroyWorkflowsByRealm(realm : string) : Promise<any>;
+    public destroyWorkflowsByRealm(realm: string): Promise<any>;
 }
 
 
@@ -146,18 +200,15 @@ export namespace Tasks {
     }
 }
 
-export interface WorkflowErrorHandler 
-{
-    (workflowId : string, taskPath: string, err): void;
+export interface WorkflowErrorHandler {
+    (workflowId: string, taskPath: string, err): void;
 }
 
-export interface WorkflowSuccessHandler 
-{
-    (workflowId : string): void;
+export interface WorkflowSuccessHandler {
+    (workflowId: string): void;
 }
 
-export interface DeleteWorkflowHandler
-{
+export interface DeleteWorkflowHandler {
     (workflowId: string): void;
 }
 
@@ -198,7 +249,7 @@ export interface Task {
      * Do not edit the context directly !
      * Use the udpateContext() function of the factory.
      */
-    execute ? : {(arg, factory : Factory<any>) : Promise<any>;};
+    execute?: { (arg, factory: Factory<any>): Promise<any>; };
 }
 
 export interface Workflow {
