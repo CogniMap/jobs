@@ -104,7 +104,9 @@ export class SqsBackend extends Backend implements BackendInterface {
                         let queueUrl = data.QueueUrl;
                         return self.sqs.purgeQueue({
                             QueueUrl: queueUrl,
-                        }).promise().then(() => queueUrl);
+                        }).promise()
+                            .catch(() => queueUrl) // Only one purge per 60 seconds
+                            .then(() => queueUrl);
                     })
                 }
             });
