@@ -12,6 +12,7 @@ import {ExecutionErrorType} from '../common';
 import {update} from '../immutability';
 import {Backend} from './Backend';
 import {Storage} from '../storages/Storage';
+import {debug} from "../logging";
 
 /**
  * Use a redis backend and queue tasks with kue.
@@ -176,7 +177,7 @@ export class KueBackend extends Backend implements BackendInterface {
                                         .then((taskResult) => {
                                             // Middleware to perform operations with the task result
                                             if (task.onComplete != null) {
-                                                console.log("[TASK COMPLETE] " + task.onComplete);
+                                                debug("[TASK COMPLETE] " + task.onComplete);
                                             }
 
                                             if (task.debug != null) {

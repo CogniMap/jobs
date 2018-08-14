@@ -22,7 +22,7 @@ export class Redis extends Storage {
         }, redisConfig);
         this.redis = RedisClass.createClient(redisConfig);
         this.redis.on('error', function (err) {
-            console.log('[REDIS ERROR] ' + err);
+            console.error('[REDIS ERROR] ' + err);
         });
     }
 

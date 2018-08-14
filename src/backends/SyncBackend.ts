@@ -11,6 +11,7 @@ import {
 } from '../index.d';
 import { update } from '../immutability';
 import { Backend } from './Backend';
+import {debug} from "../logging";
 
 /**
  * This backend store all workflow/tasks hashes in its attributes (ie in-memory, don't use tasks backend).
@@ -155,7 +156,7 @@ export class SyncBackend extends Backend implements BackendInterface
                         .then((taskResult) => {
                             // Middleware (only onComplete, no debug).
                             if (task.onComplete != null) {
-                                console.log("[TASK COMPLETE] " + task.onComplete);
+                                debug("[TASK COMPLETE] " + task.onComplete);
                             }
 
                             // Update the task hash

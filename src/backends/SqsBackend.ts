@@ -17,6 +17,7 @@ import {
 import {update} from '../immutability';
 import {Backend} from './Backend';
 import {Storage} from '../storages/Storage';
+import {debug, debug2} from "../logging";
 
 interface SqsMessage {
     MessageId: string;
@@ -94,7 +95,7 @@ export class SqsBackend extends Backend implements BackendInterface {
                 if (data.QueueUrls && data.QueueUrls.length > 0) {
                     return data.QueueUrls[0];
                 } else {
-                    console.log('[Jobs INFO] Creating SQS FIFO queue ' + queueName);
+                    debug('[Jobs INFO] Creating SQS FIFO queue ' + queueName);
                     return self.sqs.createQueue({
                         QueueName: queueName + '.fifo',
                         Attributes: {
@@ -146,13 +147,13 @@ export class SqsBackend extends Backend implements BackendInterface {
     }
 
     private handleMessage(workerMessage: Sqs.WorkerMessage) {
-        console.log('[Jobs DEBUG] Receive worker message : ', workerMessage);
+        debug2('[Jobs DEBUG] Receive worker message : ', workerMessage);
         let self = this;
 
         let taskDetails = self.tasks[workerMessage.workflowId] && self.tasks[workerMessage.workflowId][workerMessage.taskPath];
         if (taskDetails == null) {
-            console.log('[Jobs DEBUG] Unknow workflow task watcher (' + workerMessage.workflowId + ' - ' + workerMessage.taskPath + '). Skipping');
-            console.log(self.tasks);
+            debug('[Jobs DEBUG] Unknow workflow task watcher (' + workerMessage.workflowId + ' - ' + workerMessage.taskPath + '). Skipping');
+            debug(self.tasks);
             return;
         }
 
@@ -176,7 +177,7 @@ export class SqsBackend extends Backend implements BackendInterface {
                     };
 
                     return self.storage.setTask(workerMessage.workflowId, workerMessage.taskPath, newTaskHash).then(() => {
-                        console.log('[Jobs DEBUG] New task hash : ', newTaskHash);
+                        debug2('[Jobs DEBUG] New task hash : ', newTaskHash);
                         taskDetails.watcher.complete(newTaskHash);
                     })
                 });
@@ -194,7 +195,7 @@ export class SqsBackend extends Backend implements BackendInterface {
                 break;
             }
             default:
-                console.log("[Jobs WARN] Unknow worker message type : " + workerMessage.type);
+                debug("[Jobs WARN] Unknow worker message type : " + workerMessage.type);
         }
     }
 

@@ -1,3 +1,5 @@
+import {debug, debug2} from "../logging";
+
 const AWS = require('aws-sdk');
 const Promise = require('bluebird');
 const Consumer = require('sqs-consumer');
@@ -80,7 +82,7 @@ export function setupWorker(queueNamePrefix: string, config: WorkerConfiguration
             queueUrl: queueUrls.supervisionMessagesUrl,
             handleMessage: (message, done) => {
                 let body = JSON.parse(message.Body) as Sqs.SupervisionMessage;
-                console.log('[DEBUG] Receive supervision messsage : ', body);
+                debug2('[DEBUG] Receive supervision messsage : ', body);
                 switch (body.type) {
                     case "runTask":
                         handleRunTaskMessage(queueUrls.workerMessagesUrl, body as Sqs.RunTaskMessage, config);
