@@ -8,12 +8,7 @@ const sqs = new AWS.SQS({
     region: process.env['WORKER_AWS_REGION'] || 'eu-west-1' // Only Ireland for FIFO
 });
 
-import {Factory, Jobs, Sqs} from '../index.d';
-
-export interface WorkerConfiguration {
-    knownTaskPaths: string[];
-    executor: Sqs.Executor;
-}
+import {WorkerConfiguration, Jobs, Sqs} from '../index.d';
 
 export function sendMessage(queueUrl, body) {
     return sqs.sendMessage({

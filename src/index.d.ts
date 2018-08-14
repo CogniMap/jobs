@@ -135,6 +135,17 @@ declare interface BackendInterface {
     executeOneTask(workflowId: string, taskPath: string, callerSocket ?: any, argument ?: any)
 }
 
+/******************************************************************************
+ * Workers
+ ******************************************************************************/
+
+export interface WorkerConfiguration {
+    knownTaskPaths: string[];
+    executor: Sqs.Executor;
+}
+
+declare function setupWorker(queueNamePrefix: string, config: WorkerConfiguration);
+
 
 /******************************************************************************
  * Main Jobs object

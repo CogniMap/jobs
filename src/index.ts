@@ -13,6 +13,7 @@ import {KueBackend} from './backends/KueBackend';
 import {SyncBackend} from './backends/SyncBackend';
 import {SqsBackend} from "./backends/SqsBackend";
 
+export {setupWorker} from './utils/sqsWorker';
 export const Workflows = require('./workflows');
 
 /**
