@@ -19,11 +19,11 @@ export function sendMessage(queueUrl, body) {
     }).promise();
 }
 
-function getSupervisionQueueName(queueNamePrefix : string) {
+function getSupervisionQueueName(queueNamePrefix: string) {
     return queueNamePrefix + "_supervisionMessages";
 }
 
-function getWorkerQueueName(queueNamePrefix : string) {
+function getWorkerQueueName(queueNamePrefix: string) {
     return queueNamePrefix + "_workerMessages";
 }
 
@@ -135,9 +135,17 @@ export function handleRunTaskMessage(sendingQueueUrl, message: Sqs.RunTaskMessag
                 return sendUpdateContextMessage(updater);
             }
         } as any;
-        return config.executor(message.taskPath, message.param, factory).then(res => {
-            return sendResultMessage(res);
-        });
+        try {
+            return config.executor(message.taskPath, message.param, factory)
+                .catch(err => {
+                    return sendFailMessage(err);
+                })
+                .then(res => {
+                    return sendResultMessage(res);
+                });
+        } catch(err) {
+            return sendFailMessage(err);
+        }
     } else {
         console.warn('[Jobs DEBUG] Unknow task ' + message.taskPath + '. Skipping');
     }
