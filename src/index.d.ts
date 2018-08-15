@@ -38,8 +38,8 @@ export interface DynamodbConfig extends StorageConfig {
     tableName: string;
 
     awsCredentials?: {
-        keyId: string;
-        secret: string;
+        accessKeyId: string;
+        secretAccessKey: string;
     }
 }
 

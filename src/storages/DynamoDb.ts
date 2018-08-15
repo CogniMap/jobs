@@ -17,10 +17,7 @@ export class DynamoDb extends Storage {
         this.dynamodb = new AWS.DynamoDB({
             apiVersion: '2012-08-10',
             region: dynamodbConfig.region,
-            ... (dynamodbConfig.awsCredentials == null ? {} : {
-                accessKeyId: dynamodbConfig.awsCredentials.keyId,
-                secretAccessKey: dynamodbConfig.awsCredentials.secret
-            })
+            ... (dynamodbConfig.awsCredentials || {})
         });
         this.tableName = dynamodbConfig.tableName;
     }
