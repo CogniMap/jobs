@@ -138,6 +138,7 @@ export class SqsBackend extends Backend implements BackendInterface {
                         self.handleMessage(body);
                         done();
                     },
+                    sqs: self.sqs
                 });
                 handler.on('error', (err => {
                     console.error(err);
