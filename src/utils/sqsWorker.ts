@@ -5,14 +5,9 @@ const Promise = require('bluebird');
 const Consumer = require('sqs-consumer');
 const uuidv4 = require('uuid/v4');
 
-const sqs = new AWS.SQS({
-    apiVersion: '2012-11-05',
-    region: process.env['WORKER_AWS_REGION'] || 'eu-west-1' // Only Ireland for FIFO
-});
-
 import {WorkerConfiguration, Jobs, Sqs} from '../index.d';
 
-export function sendMessage(queueUrl, body) {
+export function sendMessage(sqs, queueUrl, body) {
     return sqs.sendMessage({
         QueueUrl: queueUrl,
         MessageGroupId: 'worker',
@@ -38,7 +33,7 @@ function getWorkerQueueName(queueNamePrefix: string) {
  * @param queueName
  * @returns {Promise<{}>}
  */
-export function waitForQueuesCreation(queueNamePrefix): Promise<{
+export function waitForQueuesCreation(sqs, queueNamePrefix): Promise<{
     supervisionMessagesUrl: string,
     workerMessagesUrl: string,
 }> {
@@ -77,7 +72,13 @@ export function waitForQueuesCreation(queueNamePrefix): Promise<{
 }
 
 export function setupWorker(queueNamePrefix: string, config: WorkerConfiguration) {
-    return waitForQueuesCreation(queueNamePrefix).then(queueUrls => {
+    const sqs = new AWS.SQS({
+        apiVersion: '2012-11-05',
+        region: process.env['WORKER_AWS_REGION'] || 'eu-west-1', // Only Ireland for FIFO
+        ... (config.awsCredentials || {})
+    });
+
+    return waitForQueuesCreation(sqs, queueNamePrefix).then(queueUrls => {
         let handler = Consumer.create({
             queueUrl: queueUrls.supervisionMessagesUrl,
             handleMessage: (message, done) => {
@@ -85,7 +86,7 @@ export function setupWorker(queueNamePrefix: string, config: WorkerConfiguration
                 debug2('[DEBUG] Receive supervision messsage : ', body);
                 switch (body.type) {
                     case "runTask":
-                        handleRunTaskMessage(queueUrls.workerMessagesUrl, body as Sqs.RunTaskMessage, config);
+                        handleRunTaskMessage(sqs, queueUrls.workerMessagesUrl, body as Sqs.RunTaskMessage, config);
                         break;
                     default:
                         console.warn("Unknow supervision message type : " + body.type);
@@ -102,9 +103,9 @@ export function setupWorker(queueNamePrefix: string, config: WorkerConfiguration
     })
 }
 
-export function handleRunTaskMessage(sendingQueueUrl, message: Sqs.RunTaskMessage, config: WorkerConfiguration) {
+export function handleRunTaskMessage(sqs, sendingQueueUrl, message: Sqs.RunTaskMessage, config: WorkerConfiguration) {
     function sendResultMessage(result) {
-        return sendMessage(sendingQueueUrl, {
+        return sendMessage(sqs, sendingQueueUrl, {
             type: 'result',
             taskPath: message.taskPath,
             workflowId: message.workflowId,
@@ -113,7 +114,7 @@ export function handleRunTaskMessage(sendingQueueUrl, message: Sqs.RunTaskMessag
     }
 
     function sendFailMessage(error) {
-        return sendMessage(sendingQueueUrl, {
+        return sendMessage(sqs, sendingQueueUrl, {
             type: 'fail',
             taskPath: message.taskPath,
             workflowId: message.workflowId,
@@ -122,7 +123,7 @@ export function handleRunTaskMessage(sendingQueueUrl, message: Sqs.RunTaskMessag
     }
 
     function sendUpdateContextMessage(updater) {
-        return sendMessage(sendingQueueUrl, {
+        return sendMessage(sqs, sendingQueueUrl, {
             type: 'updateContext',
             taskPath: message.taskPath,
             workflowId: message.workflowId,
@@ -145,7 +146,7 @@ export function handleRunTaskMessage(sendingQueueUrl, message: Sqs.RunTaskMessag
                 .then(res => {
                     return sendResultMessage(res);
                 });
-        } catch(err) {
+        } catch (err) {
             return sendFailMessage(err);
         }
     } else {

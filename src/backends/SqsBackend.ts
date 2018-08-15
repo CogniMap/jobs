@@ -70,6 +70,7 @@ export class SqsBackend extends Backend implements BackendInterface {
         this.sqs = new AWS.SQS({
             apiVersion: '2012-11-05',
             region: config.region,
+            ... (config.awsCredentials || {})
         });
 
         // Setup the sqs listeners

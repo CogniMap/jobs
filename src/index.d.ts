@@ -64,46 +64,50 @@ declare namespace Sqs {
     export interface Worker {
         name: string; // For queues names
     }
-    
+
     export interface SupervisionMessage {
         type: string; // Either "runTask" 
-        
+
         workflowId: string;
         taskPath: string;
     }
-    
+
     export interface RunTaskMessage extends SupervisionMessage {
         context: any;
         param: any;
     }
-    
+
     export interface WorkerMessage {
         workflowId: string;
         taskPath: string;
-        
+
         type: string; // Either "result", "updateContext"
     }
-    
+
     export interface ResultMessage extends WorkerMessage {
         result: any;
     }
-    
+
     export interface FailMessage extends WorkerMessage {
         error: any;
     }
-    
+
     export interface UpdateContextMessage extends WorkerMessage {
         updater: any;
     }
-    
+
     export interface Executor {
-        (taskPath : string, argument, factory : Factory<any>);
+        (taskPath: string, argument, factory: Factory<any>);
     }
 }
 
 export interface SqsBackendConfiguration extends BackendConfiguration {
     region: string;
-    
+    awsCredentials ?: {
+        accessKeyId: string;
+        secretAccessKey: string;
+    }
+
     queueNamesPrefix: string;
 
     // All services that can execute jobs. They will all receive tasks requests, but only one
@@ -120,6 +124,7 @@ export interface KueBackendConfiguration extends BackendConfiguration {
 
 interface ReducedFactory<T> {
     context: T;
+
     updateContext(updater: any): Promise<{}>;
 }
 
@@ -142,6 +147,11 @@ declare interface BackendInterface {
 export interface WorkerConfiguration {
     knownTaskPaths: string[];
     executor: Sqs.Executor;
+    
+    awsCredentials ?: {
+        accessKeyId: string;
+        secretAccessKey: string;
+    }
 }
 
 declare function setupWorker(queueNamePrefix: string, config: WorkerConfiguration);
