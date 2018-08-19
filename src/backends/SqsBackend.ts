@@ -106,7 +106,8 @@ export class SqsBackend extends Backend implements BackendInterface {
                     return self.sqs.createQueue({
                         QueueName: queueName + '.fifo',
                         Attributes: {
-                            FifoQueue: 'true'
+                            FifoQueue: 'true',
+                            VisibilityTimeout: 0, // There is only once consummer per queue
                         }
                     }).promise().then(data => {
                         return data.QueueUrl;
