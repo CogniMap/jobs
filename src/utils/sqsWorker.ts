@@ -71,7 +71,7 @@ export function waitForQueuesCreation(sqs, queueNamePrefix): Promise<{
     })
 }
 
-function sendWorkerHello(sqs, queueUrl : string, workerUid : string) {
+function sendWorkerHello(sqs, queueUrl: string, workerUid: string) {
     return sendMessage(sqs, queueUrl, {
         type: 'workerHello',
         workerUid
@@ -95,24 +95,33 @@ export function setupWorker(queueNamePrefix: string, config: WorkerConfiguration
                     let body = JSON.parse(message.Body) as Sqs.SupervisionMessage;
                     debug2('[DEBUG] Receive supervision messsage : ', body);
 
-                    if (body.type == "helloSupervision") {
+                    if (body.type == "supervisionHello") {
+                        let supervisionChanged = supervisionUid != body.supervisionUid;
                         supervisionUid = body.supervisionUid;
-                        return;
-                    } else {
-                        // Only process messages from known supervision
-                        if (supervisionUid == null || supervisionUid != body.supervisionUid) {
-                            return;
+                        if (supervisionChanged) {
+                            this.sendWorkerHello(sqs, queueUrls.workerMessagesUrl, workerUid).then(() => {
+                                done();
+                            })
+                        } else {
+                            done();
                         }
+                    } else {
+                        try {
+                            // Only process messages from known supervision
+                            if (supervisionUid != null && supervisionUid == body.supervisionUid) {
+                                switch (body.type) {
+                                    case "runTask":
+                                        handleRunTaskMessage(workerUid, sqs, queueUrls.workerMessagesUrl, body as Sqs.RunTaskMessage, config);
+                                        break;
+                                    default:
+                                        console.warn("Unknow supervision message type : " + body.type);
+                                }
+                            }
+                        } catch (e) {
+                            console.error(e);
+                        }
+                        done();
                     }
-
-                    switch (body.type) {
-                        case "runTask":
-                            handleRunTaskMessage(sqs, queueUrls.workerMessagesUrl, body as Sqs.RunTaskMessage, config);
-                            break;
-                        default:
-                            console.warn("Unknow supervision message type : " + body.type);
-                    }
-                    done();
                 },
                 sqs
             });
@@ -125,10 +134,11 @@ export function setupWorker(queueNamePrefix: string, config: WorkerConfiguration
     })
 }
 
-export function handleRunTaskMessage(sqs, sendingQueueUrl, message: Sqs.RunTaskMessage, config: WorkerConfiguration) {
+export function handleRunTaskMessage(workerUid: string, sqs, sendingQueueUrl, message: Sqs.RunTaskMessage, config: WorkerConfiguration) {
     function sendResultMessage(result) {
         return sendMessage(sqs, sendingQueueUrl, {
             type: 'result',
+            workerUid,
             taskPath: message.taskPath,
             workflowId: message.workflowId,
             result,
@@ -140,6 +150,7 @@ export function handleRunTaskMessage(sqs, sendingQueueUrl, message: Sqs.RunTaskM
             type: 'fail',
             taskPath: message.taskPath,
             workflowId: message.workflowId,
+            workerUid,
             error,
         } as Sqs.FailMessage)
     }
@@ -149,6 +160,7 @@ export function handleRunTaskMessage(sqs, sendingQueueUrl, message: Sqs.RunTaskM
             type: 'updateContext',
             taskPath: message.taskPath,
             workflowId: message.workflowId,
+            workerUid,
             updater,
         } as Sqs.UpdateContextMessage)
     }

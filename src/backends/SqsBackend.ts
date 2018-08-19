@@ -129,7 +129,6 @@ export class SqsBackend extends Backend implements BackendInterface {
     private sendSupervisionHelloMessage(): Promise<any> {
         return this.sendMessage({
             type: 'supervisionHello',
-            supervisionUid: this.supervisionUid,
         } as Sqs.SupervisionHelloMessage);
     }
 
@@ -155,8 +154,14 @@ export class SqsBackend extends Backend implements BackendInterface {
                         queueUrl: queueUrls.workerMessagesUrl,
                         handleMessage: (message, done) => {
                             let body = JSON.parse(message.Body);
-                            self.handleMessage(worker.name, body);
-                            done();
+                            let res = self.handleMessage(worker.name, body);
+                            if (res != null) {
+                                res.then(() => {
+                                    done();
+                                })
+                            } else {
+                                done();
+                            }
                         },
                         sqs: self.sqs
                     });
@@ -175,7 +180,11 @@ export class SqsBackend extends Backend implements BackendInterface {
 
         if (workerMessage.type == "workerHello") {
             let helloMessage = workerMessage as Sqs.WorkerHelloMessage;
+            let workerChanged = this.workers[workerName].uid != helloMessage.workerUid;
             this.workers[workerName].uid = helloMessage.workerUid;
+            if (workerChanged) {
+                return this.sendSupervisionHelloMessage();
+            }
             return;
         } else {
             // Only process messages from known workers (ie they might be remaining messages in the queue)
@@ -243,6 +252,10 @@ export class SqsBackend extends Backend implements BackendInterface {
      */
     private sendMessage(body: any) {
         let self = this;
+        body = {
+            ...body,
+            supervisionUid: this.supervisionUid
+        };
         return Promise.all(values(this.workers).map(worker => {
             let queueUrls = worker.queues;
             return self.sqs.sendMessage({
