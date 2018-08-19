@@ -71,35 +71,57 @@ export function waitForQueuesCreation(sqs, queueNamePrefix): Promise<{
     })
 }
 
+function sendWorkerHello(sqs, queueUrl : string, workerUid : string) {
+    return sendMessage(sqs, queueUrl, {
+        type: 'workerHello',
+        workerUid
+    });
+}
+
 export function setupWorker(queueNamePrefix: string, config: WorkerConfiguration) {
     const sqs = new AWS.SQS({
         apiVersion: '2012-11-05',
         region: process.env['WORKER_AWS_REGION'] || 'eu-west-1', // Only Ireland for FIFO
         ... (config.awsCredentials || {})
     });
+    const workerUid = uuidv4();
+    let supervisionUid = null;
 
     return waitForQueuesCreation(sqs, queueNamePrefix).then(queueUrls => {
-        let handler = Consumer.create({
-            queueUrl: queueUrls.supervisionMessagesUrl,
-            handleMessage: (message, done) => {
-                let body = JSON.parse(message.Body) as Sqs.SupervisionMessage;
-                debug2('[DEBUG] Receive supervision messsage : ', body);
-                switch (body.type) {
-                    case "runTask":
-                        handleRunTaskMessage(sqs, queueUrls.workerMessagesUrl, body as Sqs.RunTaskMessage, config);
-                        break;
-                    default:
-                        console.warn("Unknow supervision message type : " + body.type);
-                }
-                done();
-            },
-            sqs
+        return sendWorkerHello(sqs, queueUrls.workerMessagesUrl, workerUid).then(() => {
+            let handler = Consumer.create({
+                queueUrl: queueUrls.supervisionMessagesUrl,
+                handleMessage: (message, done) => {
+                    let body = JSON.parse(message.Body) as Sqs.SupervisionMessage;
+                    debug2('[DEBUG] Receive supervision messsage : ', body);
+
+                    if (body.type == "helloSupervision") {
+                        supervisionUid = body.supervisionUid;
+                        return;
+                    } else {
+                        // Only process messages from known supervision
+                        if (supervisionUid == null || supervisionUid != body.supervisionUid) {
+                            return;
+                        }
+                    }
+
+                    switch (body.type) {
+                        case "runTask":
+                            handleRunTaskMessage(sqs, queueUrls.workerMessagesUrl, body as Sqs.RunTaskMessage, config);
+                            break;
+                        default:
+                            console.warn("Unknow supervision message type : " + body.type);
+                    }
+                    done();
+                },
+                sqs
+            });
+            handler.on('error', (err => {
+                console.error('[Jobs] SQS Worker error : ');
+                console.error(err);
+            }));
+            handler.start();
         });
-        handler.on('error', (err => {
-            console.error('[Jobs] SQS Worker error : ');
-            console.error(err);
-        }));
-        handler.start();
     })
 }
 

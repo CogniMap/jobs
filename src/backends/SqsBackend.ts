@@ -1,6 +1,5 @@
-import {worker} from "cluster";
-
 const AWS = require('aws-sdk');
+const values = require('object.values');
 const Promise = require('bluebird');
 const Consumer = require('sqs-consumer');
 const uuidv4 = require('uuid/v4');
@@ -42,6 +41,17 @@ export class SqsBackend extends Backend implements BackendInterface {
 
     private sqs;
 
+    private supervisionUid: string;
+    private workers: {
+        [workerName: string]: {
+            uid?: string;
+            queues?: {
+                workerMessagesUrl: string;
+                supervisionMessagesUrl: string;
+            };
+        };
+    };
+
     private tasks: {
         [workflowId: string]: {
             [taskPath: string]: {
@@ -53,11 +63,6 @@ export class SqsBackend extends Backend implements BackendInterface {
         }
     };
 
-    private queueUrls: {
-        workerMessagesUrl: string;
-        supervisionMessagesUrl: string;
-    }[];
-
     public constructor(config: SqsBackendConfiguration) {
         super();
 
@@ -65,13 +70,14 @@ export class SqsBackend extends Backend implements BackendInterface {
         this.deleteHandler = config.onDeleteWorkflow;
 
         this.tasks = {};
-        this.queueUrls = [];
+        this.workers = {};
 
         this.sqs = new AWS.SQS({
             apiVersion: '2012-11-05',
             region: config.region,
             ... (config.awsCredentials || {})
         });
+        this.supervisionUid = uuidv4();
 
         // Setup the sqs listeners
         this.setupQueues(config.workers, config.queueNamesPrefix);
@@ -103,12 +109,7 @@ export class SqsBackend extends Backend implements BackendInterface {
                             FifoQueue: 'true'
                         }
                     }).promise().then(data => {
-                        let queueUrl = data.QueueUrl;
-                        return self.sqs.purgeQueue({
-                            QueueUrl: queueUrl,
-                        }).promise()
-                            .catch(() => queueUrl) // Only one purge per 60 seconds
-                            .then(() => queueUrl);
+                        return data.QueueUrl;
                     })
                 }
             });
@@ -125,36 +126,70 @@ export class SqsBackend extends Backend implements BackendInterface {
         })
     }
 
+    private sendSupervisionHelloMessage(): Promise<any> {
+        return this.sendMessage({
+            type: 'supervisionHello',
+            supervisionUid: this.supervisionUid,
+        } as Sqs.SupervisionHelloMessage);
+    }
+
+    /**
+     * We don't purge queues because it can take up to 60 seconds.
+     *
+     * Instead, we use SupervisionUid and WorkerUids. They are sent with HelloPackets
+     *
+     * @param {Sqs.Worker[]} workers
+     * @param {string} queueNamesPrefix
+     * @returns {any}
+     */
     private setupQueues(workers: Sqs.Worker[], queueNamesPrefix: string) {
         let self = this;
         return Promise.all(workers.map(worker => {
             let queueName = queueNamesPrefix + '_' + worker.name;
             return self.createQueuesIfNotExist(queueName).then(queueUrls => {
-                self.queueUrls.push(queueUrls);
-                let handler = Consumer.create({
-                    queueUrl: queueUrls.workerMessagesUrl,
-                    handleMessage: (message, done) => {
-                        let body = JSON.parse(message.Body);
-                        self.handleMessage(body);
-                        done();
-                    },
-                    sqs: self.sqs
+                self.workers[worker.name] = {
+                    queues: queueUrls
+                };
+                return self.sendSupervisionHelloMessage().then(() => {
+                    let handler = Consumer.create({
+                        queueUrl: queueUrls.workerMessagesUrl,
+                        handleMessage: (message, done) => {
+                            let body = JSON.parse(message.Body);
+                            self.handleMessage(worker.name, body);
+                            done();
+                        },
+                        sqs: self.sqs
+                    });
+                    handler.on('error', (err => {
+                        console.error(err);
+                    }));
+                    handler.start();
                 });
-                handler.on('error', (err => {
-                    console.error(err);
-                }));
-                handler.start();
             });
         }));
     }
 
-    private handleMessage(workerMessage: Sqs.WorkerMessage) {
+    private handleMessage(workerName: string, workerMessage: Sqs.WorkerMessage) {
         debug2('[Jobs DEBUG] Receive worker message : ', workerMessage);
         let self = this;
 
-        let taskDetails = self.tasks[workerMessage.workflowId] && self.tasks[workerMessage.workflowId][workerMessage.taskPath];
+        if (workerMessage.type == "workerHello") {
+            let helloMessage = workerMessage as Sqs.WorkerHelloMessage;
+            this.workers[workerName].uid = helloMessage.workerUid;
+            return;
+        } else {
+            // Only process messages from known workers (ie they might be remaining messages in the queue)
+            let knownWorkerUid = this.workers[workerName].uid;
+            if (knownWorkerUid == null || workerMessage.workerUid != knownWorkerUid) {
+                return;
+            }
+        }
+
+        let workflowWorkerMessage = workerMessage as Sqs.WorkflowWorkerMessage;
+        let {workflowId, taskPath} = workflowWorkerMessage;
+        let taskDetails = self.tasks[workflowId] && self.tasks[workflowId][workflowWorkerMessage.taskPath];
         if (taskDetails == null) {
-            debug('[Jobs DEBUG] Unknow workflow task watcher (' + workerMessage.workflowId + ' - ' + workerMessage.taskPath + '). Skipping');
+            debug('[Jobs DEBUG] Unknow workflow task watcher (' + workflowId + ' - ' + taskPath + '). Skipping');
             debug(self.tasks);
             return;
         }
@@ -165,7 +200,7 @@ export class SqsBackend extends Backend implements BackendInterface {
 
                 let taskResult = resultMessage.result;
 
-                return self.getTaskHash(workerMessage.workflowId, workerMessage.taskPath).then(taskHash => {
+                return self.getTaskHash(workflowId, taskPath).then(taskHash => {
                     // Update the task hash
                     let currentDate = new Date();
                     let newTaskHash = {
@@ -178,7 +213,7 @@ export class SqsBackend extends Backend implements BackendInterface {
                         executionTime: currentDate.getTime(),
                     };
 
-                    return self.storage.setTask(workerMessage.workflowId, workerMessage.taskPath, newTaskHash).then(() => {
+                    return self.storage.setTask(workflowId, taskPath, newTaskHash).then(() => {
                         debug2('[Jobs DEBUG] New task hash : ', newTaskHash);
                         taskDetails.watcher.complete(newTaskHash);
                     })
@@ -208,7 +243,8 @@ export class SqsBackend extends Backend implements BackendInterface {
      */
     private sendMessage(body: any) {
         let self = this;
-        return Promise.all(this.queueUrls.map(queueUrls => {
+        return Promise.all(values(this.workers).map(worker => {
+            let queueUrls = worker.queues;
             return self.sqs.sendMessage({
                 QueueUrl: queueUrls.supervisionMessagesUrl,
                 MessageGroupId: 'supervision',

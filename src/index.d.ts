@@ -68,31 +68,45 @@ declare namespace Sqs {
     export interface SupervisionMessage {
         type: string; // Either "runTask" 
 
+        supervisionUid: string;
+    }
+
+    export interface WorkflowSupervisionMessage extends SupervisionMessage {
         workflowId: string;
         taskPath: string;
     }
 
-    export interface RunTaskMessage extends SupervisionMessage {
+    export interface RunTaskMessage extends WorkflowSupervisionMessage {
         context: any;
         param: any;
     }
 
-    export interface WorkerMessage {
-        workflowId: string;
-        taskPath: string;
-
-        type: string; // Either "result", "updateContext"
+    export interface SupervisionHelloMessage extends SupervisionMessage {
     }
 
-    export interface ResultMessage extends WorkerMessage {
+    export interface WorkerMessage {
+        type: string; // Either "result", "updateContext"
+
+        workerUid: string;
+    }
+
+    export interface WorkflowWorkerMessage extends WorkerMessage {
+        workflowId: string;
+        taskPath: string;
+    }
+
+    export interface WorkerHelloMessage extends WorkflowWorkerMessage {
+    }
+
+    export interface ResultMessage extends WorkflowWorkerMessage {
         result: any;
     }
 
-    export interface FailMessage extends WorkerMessage {
+    export interface FailMessage extends WorkflowWorkerMessage {
         error: any;
     }
 
-    export interface UpdateContextMessage extends WorkerMessage {
+    export interface UpdateContextMessage extends WorkflowWorkerMessage {
         updater: any;
     }
 
@@ -103,7 +117,7 @@ declare namespace Sqs {
 
 export interface SqsBackendConfiguration extends BackendConfiguration {
     region: string;
-    awsCredentials ?: {
+    awsCredentials?: {
         accessKeyId: string;
         secretAccessKey: string;
     }
@@ -147,8 +161,8 @@ declare interface BackendInterface {
 export interface WorkerConfiguration {
     knownTaskPaths: string[];
     executor: Sqs.Executor;
-    
-    awsCredentials ?: {
+
+    awsCredentials?: {
         accessKeyId: string;
         secretAccessKey: string;
     }
