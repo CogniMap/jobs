@@ -231,7 +231,7 @@ export class SqsBackend extends Backend implements BackendInterface {
             case "fail": {
                 let failMessage = workerMessage as Sqs.FailMessage;
 
-                taskDetails.watcher.error(failMessage.error);
+                taskDetails.watcher.failed({payload: failMessage.error});
                 break;
             }
             case "updateContext": {
