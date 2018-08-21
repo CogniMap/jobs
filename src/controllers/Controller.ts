@@ -64,7 +64,12 @@ export class Controller implements ControllerInterface {
             .then(res => {
                 let {workflow, workflowHash} = res;
                 return workflow.execute(self, argument)
-                    .catch(({err, taskPath}) => {
+                    .catch((error) => {
+                        let err = {}, taskPath = '#';
+                        if (error != null) {
+                            err = error.err;
+                            taskPath = error.taskPath
+                        }
                         self.onWorkflowError(workflowId, taskPath, err);
                         return Promise.reject(err);
                     })
