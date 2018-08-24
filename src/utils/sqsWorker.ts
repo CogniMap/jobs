@@ -106,12 +106,13 @@ export function setupWorker(queueNamePrefix: string, config: WorkerConfiguration
                             done();
                         }
                     } else {
+                        let promise = Promise.resolve();
                         try {
                             // Only process messages from known supervision
                             if (supervisionUid != null && supervisionUid == body.supervisionUid) {
                                 switch (body.type) {
                                     case "runTask":
-                                        handleRunTaskMessage(workerUid, sqs, queueUrls.workerMessagesUrl, body as Sqs.RunTaskMessage, config);
+                                        promise = handleRunTaskMessage(workerUid, sqs, queueUrls.workerMessagesUrl, body as Sqs.RunTaskMessage, config);
                                         break;
                                     default:
                                         console.warn("Unknow supervision message type : " + body.type);
@@ -120,7 +121,14 @@ export function setupWorker(queueNamePrefix: string, config: WorkerConfiguration
                         } catch (e) {
                             console.error(e);
                         }
-                        done();
+
+                        promise
+                            .catch(err => {
+                                console.error(err);
+                            })
+                            .then(() => {
+                                done();
+                            })
                     }
                 },
                 sqs
