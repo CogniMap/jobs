@@ -4,3 +4,5 @@ dist
 
 # To store JOBS_REACT envvar
 keys.sh 
+
+package-lock.json
