@@ -230,7 +230,6 @@ export class SqsBackend extends Backend implements BackendInterface {
                         argument: taskDetails.argument,
                         context: taskDetails.callingContext,
                         body: taskResult || null,
-                        contextUpdaters: taskDetails.contextUpdaters,
                         executionTime: currentDate.getTime(),
                     };
 
@@ -330,7 +329,6 @@ export class SqsBackend extends Backend implements BackendInterface {
                                     }
                                     self.tasks[workflowId][taskPath] = {
                                         watcher,
-                                        contextUpdaters: [],
                                         callingContext: context,
                                         argument
                                     };
