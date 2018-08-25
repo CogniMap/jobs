@@ -110,24 +110,50 @@ const generator1 = (data) => {
             name: 'task2',
             description: 'Update context',
             children: [],
-        }, {
-            name: 'task3',
-            description: 'See updated context',
-            children: [],
-        }, {
-            name: 'task4',
-            description: 'Skipped task',
-            children: [],
-        }, {
-            name: 'task5',
-            description: 'Returns a Promise.reject',
-            children: [],
-        }, {
-            name: 'task6',
-            description: 'Throws an Error',
-            children: [],
-        },
-    ];
+            contextVar: 'test';
+},
+    {
+        name: 'task3',
+            description
+    :
+        'See updated context',
+            children
+    :
+        [],
+    }
+,
+    {
+        name: 'task4',
+            description
+    :
+        'Skipped task',
+            children
+    :
+        [],
+    }
+,
+    {
+        name: 'task5',
+            description
+    :
+        'Returns a Promise.reject',
+            children
+    :
+        [],
+    }
+,
+    {
+        name: 'task6',
+            description
+    :
+        'Throws an Error',
+            children
+    :
+        [],
+    }
+,
+]
+    ;
 
     return new TreeWorkflow(tasks);
 };
@@ -146,22 +172,20 @@ export function sqsExecuteTask(taskPath: string, arg, factory: ReducedFactory<an
                 }, 5000);
             });
         case "#.task2":
-            // Update context
-            return factory.updateContext({
-                test: {$set: 'ok'},
-            }).then(() => {
-                debug('TASK', 'Start #.task2');
-                return new Promise((resolve, reject) => {
-                    setTimeout(() => {
-                        resolve('Context updated');
-                        console.log('[DEBUG] #.task2 done');
-                    }, 5000);
-                })
+            // Update context with context var
+            debug('TASK', 'Start #.task2');
+            return new Promise((resolve, reject) => {
+                setTimeout(() => {
+                    console.log('Context will be updated with contextVar');
+                    resolve('ok');
+                    console.log('[DEBUG] #.task2 done');
+                }, 5000);
             });
         case "#.task3":
             // See updated context
             return new Promise((resolve, reject) => {
                 debug('TASK', 'Start #.task3');
+                console.log('Context : ', factory.context);
                 debug('TASK', 'Start timeout ...');
                 setTimeout(() => {
                     debug('TASK', '#.task3 done');

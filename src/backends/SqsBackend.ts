@@ -40,6 +40,14 @@ interface Queues {
  * There are two kinds of queues :
  *  - Supervision, for supervision messages (runTask etc)
  *  - Worker, for worker messages (result, etc)
+ *
+ * We don't use FIFO queues, because there is no risk of mis-order tasks because :
+ *  - There is only one worker per task type
+ *  - If a worker receive a runTask message, it means this task can be executed safely
+ *  - Same thing when supervision receives a result message
+ *
+ * For this reason, SQS backend does not support updateContext ! (Context can only be updated through
+ * "contextVar" and results).
  */
 export class SqsBackend extends Backend implements BackendInterface {
     private storage: Storage;
@@ -65,7 +73,6 @@ export class SqsBackend extends Backend implements BackendInterface {
         [workflowId: string]: {
             [taskPath: string]: {
                 watcher: TaskWatcher,
-                contextUpdaters: any[],
                 argument: any,
                 callingContext: any
             };
@@ -237,12 +244,6 @@ export class SqsBackend extends Backend implements BackendInterface {
                 let failMessage = workerMessage as Sqs.FailMessage;
 
                 taskDetails.watcher.failed({payload: failMessage.error});
-                break;
-            }
-            case "updateContext": {
-                let updateContextMessage = workerMessage as Sqs.UpdateContextMessage;
-
-                taskDetails.contextUpdaters.push(updateContextMessage.updater);
                 break;
             }
             default:

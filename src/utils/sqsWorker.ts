@@ -151,21 +151,11 @@ export function handleRunTaskMessage(workerUid: string, sqs, sendingQueueUrl, me
         } as Sqs.FailMessage)
     }
 
-    function sendUpdateContextMessage(updater) {
-        return sendMessage(sqs, sendingQueueUrl, {
-            type: 'updateContext',
-            taskPath: message.taskPath,
-            workflowId: message.workflowId,
-            workerUid,
-            updater,
-        } as Sqs.UpdateContextMessage)
-    }
-
     if (config.knownTaskPaths.indexOf(message.taskPath) > -1) {
         let factory = {
             context: message.context,
             updateContext(updater) {
-                return sendUpdateContextMessage(updater);
+                throw new Error("SQS Backend does not support updateContext !");
             }
         } as any;
         try {
