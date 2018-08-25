@@ -271,6 +271,7 @@ export interface Task {
     description?: string;
 
     contextVar?: string; // If set, the task result will be added to the future contexts.
+    contextVars?: string[]; // Cf contextVar
 
     condition?: { (context): boolean; };
     /**

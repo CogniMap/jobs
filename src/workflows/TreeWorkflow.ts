@@ -94,6 +94,12 @@ export class TreeWorkflow extends BaseWorkflow
                         if (task.contextVar != null) {
                             currentContext[task.contextVar] = prevResult;
                         }
+                        if(task.contextVars != null) {
+                            for (let variable of task.contextVars) {
+                                currentContext[variable] = prevResult[variable];
+                            }
+                        }
+
                         currentContext = getResultContext(taskHash, currentContext);
                     });
             });
