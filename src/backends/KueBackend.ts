@@ -177,7 +177,7 @@ export class KueBackend extends Backend implements BackendInterface {
                                         .then((taskResult) => {
                                             // Middleware to perform operations with the task result
                                             if (task.onComplete != null) {
-                                                debug("[TASK COMPLETE] " + task.onComplete);
+                                                debug(null, "(TASK COMPLETE) " + task.onComplete);
                                             }
 
                                             if (task.debug != null) {

@@ -6,14 +6,15 @@ const Consumer = require('sqs-consumer');
 const uuidv4 = require('uuid/v4');
 
 import {WorkerConfiguration, Jobs, Sqs} from '../index.d';
+import {createMessageHandler} from "./sqs";
 
 export function sendMessage(sqs, queueUrl, body) {
     return sqs.sendMessage({
         QueueUrl: queueUrl,
-        MessageGroupId: 'worker',
-        MessageDeduplicationId: uuidv4(),
         MessageBody: JSON.stringify(body)
-    }).promise();
+    }).promise().then(() => {
+        debug("WORKER", "Message " + body.type + " sent on " + queueUrl);
+    });
 }
 
 function getSupervisionQueueName(queueNamePrefix: string) {
@@ -88,55 +89,42 @@ export function setupWorker(queueNamePrefix: string, config: WorkerConfiguration
     let supervisionUid = null;
 
     return waitForQueuesCreation(sqs, queueNamePrefix).then(queueUrls => {
+        debug("WORKER", "Prepare sending workerHello");
         return sendWorkerHello(sqs, queueUrls.workerMessagesUrl, workerUid).then(() => {
+            let self = this;
+            debug("WORKER", "workerHello sent");
             let handler = Consumer.create({
                 queueUrl: queueUrls.supervisionMessagesUrl,
-                handleMessage: (message, done) => {
+                visibilityTimeout: 30,
+                waitTimeSeconds: 20,
+                handleMessage: createMessageHandler("WORKER", (message) => {
                     let body = JSON.parse(message.Body) as Sqs.SupervisionMessage;
-                    debug2('[DEBUG] Receive supervision messsage : ', body);
 
                     if (body.type == "supervisionHello") {
                         let supervisionChanged = supervisionUid != body.supervisionUid;
                         supervisionUid = body.supervisionUid;
                         if (supervisionChanged) {
-                            this.sendWorkerHello(sqs, queueUrls.workerMessagesUrl, workerUid).then(() => {
-                                done();
-                            })
-                        } else {
-                            done();
+                            return sendWorkerHello(sqs, queueUrls.workerMessagesUrl, workerUid);
                         }
                     } else {
-                        let promise = Promise.resolve();
-                        try {
-                            // Only process messages from known supervision
-                            if (supervisionUid != null && supervisionUid == body.supervisionUid) {
-                                switch (body.type) {
-                                    case "runTask":
-                                        promise = handleRunTaskMessage(workerUid, sqs, queueUrls.workerMessagesUrl, body as Sqs.RunTaskMessage, config);
-                                        break;
-                                    default:
-                                        console.warn("Unknow supervision message type : " + body.type);
-                                }
+                        // Only process messages from known supervision
+                        if (supervisionUid != null && supervisionUid == body.supervisionUid) {
+                            switch (body.type) {
+                                case "runTask":
+                                    return handleRunTaskMessage(workerUid, sqs, queueUrls.workerMessagesUrl, body as Sqs.RunTaskMessage, config);
+                                default:
+                                    console.warn("Unknow supervision message type : " + body.type);
                             }
-                        } catch (e) {
-                            console.error(e);
                         }
-
-                        promise
-                            .catch(err => {
-                                console.error(err);
-                            })
-                            .then(() => {
-                                done();
-                            })
                     }
-                },
+                }),
                 sqs
             });
             handler.on('error', (err => {
                 console.error('[Jobs] SQS Worker error : ');
                 console.error(err);
             }));
+            debug("WORKER", "Start consuming supervision queue");
             handler.start();
         });
     })
@@ -192,7 +180,7 @@ export function handleRunTaskMessage(workerUid: string, sqs, sendingQueueUrl, me
             return sendFailMessage(err);
         }
     } else {
-        debug('[Jobs DEBUG] Unknow task ' + message.taskPath + '. Skipping');
+        debug('WORKER', 'Unknow task ' + message.taskPath + '. Skipping');
     }
     return Promise.resolve();
 }

@@ -1,3 +1,5 @@
+import {debug} from "../src/logging";
+
 const Express = require('express');
 const uuidv4 = require('uuid/v4');
 const http = require('http');
@@ -134,10 +136,12 @@ export function sqsExecuteTask(taskPath: string, arg, factory: ReducedFactory<an
     switch (taskPath) {
         case "#.task1":
             // Returns a Promise.resolve
-            console.log('Initial argument : ');
-            console.log(arg);
+            debug('TASK', 'Start #.task1');
+            debug('TASK', 'Initial argument : ');
+            debug('TASK', arg);
             return new Promise((resolve, reject) => {
                 setTimeout(() => {
+                    debug('TASK', '#.task1 done');
                     resolve('OK');
                 }, 5000);
             });
@@ -146,18 +150,21 @@ export function sqsExecuteTask(taskPath: string, arg, factory: ReducedFactory<an
             return factory.updateContext({
                 test: {$set: 'ok'},
             }).then(() => {
+                debug('TASK', 'Start #.task2');
                 return new Promise((resolve, reject) => {
                     setTimeout(() => {
                         resolve('Context updated');
+                        console.log('[DEBUG] #.task2 done');
                     }, 5000);
                 })
             });
         case "#.task3":
             // See updated context
             return new Promise((resolve, reject) => {
-                console.log('Start timeout ...');
+                debug('TASK', 'Start #.task3');
+                debug('TASK', 'Start timeout ...');
                 setTimeout(() => {
-                    console.log('... done');
+                    debug('TASK', '#.task3 done');
                     resolve('Nothing');
                 }, 10000);
             });
@@ -166,7 +173,7 @@ export function sqsExecuteTask(taskPath: string, arg, factory: ReducedFactory<an
             return Promise.reject('Should not happened');
         case "#.task5":
             // Returns Promise.reject
-            console.log('task4 (will fail)');
+            debug('TASK', 'task4 (will fail)');
             return Promise.reject('Error');
         case "#.task6":
             // Throw an error

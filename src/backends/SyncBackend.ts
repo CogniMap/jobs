@@ -156,7 +156,7 @@ export class SyncBackend extends Backend implements BackendInterface
                         .then((taskResult) => {
                             // Middleware (only onComplete, no debug).
                             if (task.onComplete != null) {
-                                debug("[TASK COMPLETE] " + task.onComplete);
+                                debug(null, "(TASK COMPLETE) " + task.onComplete);
                             }
 
                             // Update the task hash

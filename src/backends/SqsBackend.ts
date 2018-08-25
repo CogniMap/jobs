@@ -1,9 +1,10 @@
+import {createMessageHandler} from "../utils/sqs";
+
 const AWS = require('aws-sdk');
 const values = require('object.values');
 const Promise = require('bluebird');
 const Consumer = require('sqs-consumer');
 const uuidv4 = require('uuid/v4');
-const objectPath = require('object-path');
 
 import {TaskWatcher} from "./watcher";
 import {getTasksStorageInstance} from "../storages/factory";
@@ -23,6 +24,11 @@ interface SqsMessage {
     Body: string;
 }
 
+interface Queues {
+    workerMessagesUrl: string;
+    supervisionMessagesUrl: string;
+}
+
 /**
  * Use AWS SQS to manage tasks execution.
  *
@@ -38,6 +44,9 @@ interface SqsMessage {
 export class SqsBackend extends Backend implements BackendInterface {
     private storage: Storage;
     private deleteHandler;
+    private purgers: {
+        [queueUrl: string]: any; // setTimeout handlers
+    }
 
     private sqs;
 
@@ -89,10 +98,7 @@ export class SqsBackend extends Backend implements BackendInterface {
      * @param {string} queueName
      * @returns {Promise<string>}
      */
-    private createQueuesIfNotExist(queueNamePrefix: string): Promise<{
-        workerMessagesUrl: string;
-        supervisionMessagesUrl: string;
-    }> {
+    private createQueuesIfNotExist(queueNamePrefix: string): Promise<Queues> {
         let self = this;
 
         function createQueue(queueName) {
@@ -102,12 +108,13 @@ export class SqsBackend extends Backend implements BackendInterface {
                 if (data.QueueUrls && data.QueueUrls.length > 0) {
                     return data.QueueUrls[0];
                 } else {
-                    debug('[Jobs INFO] Creating SQS FIFO queue ' + queueName);
+                    debug('SUPERVISION', 'Creating SQS FIFO queue ' + queueName);
                     return self.sqs.createQueue({
-                        QueueName: queueName + '.fifo',
+                        QueueName: queueName,
                         Attributes: {
-                            FifoQueue: 'true',
-                            VisibilityTimeout: '1', // There is only once consummer per queue
+                            //FifoQueue: 'true',
+                            VisibilityTimeout: '30', // There is only once consummer per queue
+                            ReceiveMessageWaitTimeSeconds: '20', // Enable long polling
                         }
                     }).promise().then(data => {
                         return data.QueueUrl;
@@ -134,7 +141,7 @@ export class SqsBackend extends Backend implements BackendInterface {
     }
 
     /**
-     * We don't purge queues because it can take up to 60 seconds.
+     * Purge queues, but ignore errors because it can take up to 60 seconds.
      *
      * Instead, we use SupervisionUid and WorkerUids. They are sent with HelloPackets
      *
@@ -150,25 +157,23 @@ export class SqsBackend extends Backend implements BackendInterface {
                 self.workers[worker.name] = {
                     queues: queueUrls
                 };
+                debug("SUPERVISION", "Prepare sending supervisionHello");
                 return self.sendSupervisionHelloMessage().then(() => {
+                    debug("SUPERVISION", "supervisionHello sent");
                     let handler = Consumer.create({
+                        visibilityTimeout: 30,
                         queueUrl: queueUrls.workerMessagesUrl,
-                        handleMessage: (message, done) => {
+                        waitTimeSeconds: 20,
+                        handleMessage: createMessageHandler("SUPERVISION", (message) => {
                             let body = JSON.parse(message.Body);
-                            let res = self.handleMessage(worker.name, body);
-                            if (res != null) {
-                                res.then(() => {
-                                    done();
-                                })
-                            } else {
-                                done();
-                            }
-                        },
+                            return self.handleMessage(worker.name, body);
+                        }),
                         sqs: self.sqs
                     });
                     handler.on('error', (err => {
                         console.error(err);
                     }));
+                    debug("SUPERVISION", "Start consuming worker queue");
                     handler.start();
                 });
             });
@@ -176,7 +181,6 @@ export class SqsBackend extends Backend implements BackendInterface {
     }
 
     private handleMessage(workerName: string, workerMessage: Sqs.WorkerMessage) {
-        debug2('[Jobs DEBUG] Receive worker message : ', workerMessage);
         let self = this;
 
         if (workerMessage.type == "workerHello") {
@@ -199,8 +203,8 @@ export class SqsBackend extends Backend implements BackendInterface {
         let {workflowId, taskPath} = workflowWorkerMessage;
         let taskDetails = self.tasks[workflowId] && self.tasks[workflowId][workflowWorkerMessage.taskPath];
         if (taskDetails == null) {
-            debug('[Jobs DEBUG] Unknow workflow task watcher (' + workflowId + ' - ' + taskPath + '). Skipping');
-            debug(self.tasks);
+            debug('SUPERVISION', 'Unknow workflow task watcher (' + workflowId + ' - ' + taskPath + '). Skipping');
+            debug('SUPERVISION', self.tasks);
             return;
         }
 
@@ -224,7 +228,7 @@ export class SqsBackend extends Backend implements BackendInterface {
                     };
 
                     return self.storage.setTask(workflowId, taskPath, newTaskHash).then(() => {
-                        debug2('[Jobs DEBUG] New task hash : ', newTaskHash);
+                        debug2('SUPERVISION', 'New task hash : ', newTaskHash);
                         taskDetails.watcher.complete(newTaskHash);
                     })
                 });
@@ -242,7 +246,7 @@ export class SqsBackend extends Backend implements BackendInterface {
                 break;
             }
             default:
-                debug("[Jobs WARN] Unknow worker message type : " + workerMessage.type);
+                debug('SUPERVISION', "Unknow worker message type : " + workerMessage.type);
         }
     }
 
@@ -259,12 +263,13 @@ export class SqsBackend extends Backend implements BackendInterface {
         };
         return Promise.all(values(this.workers).map(worker => {
             let queueUrls = worker.queues;
-            return self.sqs.sendMessage({
+            let messageBody = {
                 QueueUrl: queueUrls.supervisionMessagesUrl,
-                MessageGroupId: 'supervision',
-                MessageDeduplicationId: uuidv4(),
                 MessageBody: JSON.stringify(body)
-            }).promise();
+            };
+            return self.sqs.sendMessage(messageBody).promise().then(() => {
+                debug("SUPERVISION", "Message " + body.type + " sent on " + queueUrls.supervisionMessagesUrl);
+            });
         }));
     }
 
